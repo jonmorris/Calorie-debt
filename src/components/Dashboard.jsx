@@ -1,9 +1,9 @@
 import {
-  DollarSign,
+  Flame,
   Calendar,
   Utensils,
   Footprints,
-  Wallet,
+  Activity,
   AlertTriangle,
   Target,
   TrendingDown,
@@ -21,7 +21,7 @@ import {
   Tooltip,
   ReferenceLine,
 } from 'recharts';
-import { formatDebt, CALORIES_PER_POUND } from '../utils/calculations';
+import { formatCal, CALORIES_PER_POUND } from '../utils/calculations';
 
 function MetricCard({ icon: Icon, label, value, subtext, accent = 'emerald' }) {
   const colors = {
@@ -94,7 +94,6 @@ function generateChartData(currentWeight, targetWeight, lbsPerWeek, targetDate, 
     return `${y}-${m}-${day}`;
   };
 
-  // Collect all dates: weekly projected + actual entry dates
   const dateMap = new Map();
 
   const cursor = new Date(now);
@@ -103,13 +102,11 @@ function generateChartData(currentWeight, targetWeight, lbsPerWeek, targetDate, 
     dateMap.set(ds, new Date(cursor));
     cursor.setDate(cursor.getDate() + 7);
   }
-  // Ensure end date included
   const endStr = toDateStr(end);
   if (!dateMap.has(endStr)) {
     dateMap.set(endStr, new Date(end));
   }
 
-  // Add entry dates
   const actualMap = new Map();
   for (const entry of entries) {
     actualMap.set(entry.date, entry.weight);
@@ -119,7 +116,6 @@ function generateChartData(currentWeight, targetWeight, lbsPerWeek, targetDate, 
     }
   }
 
-  // Sort and build data
   const sorted = [...dateMap.entries()].sort((a, b) => a[0].localeCompare(b[0]));
   const data = [];
   for (const [ds, date] of sorted) {
@@ -154,12 +150,12 @@ function CustomTooltip({ active, payload }) {
   );
 }
 
-export default function Dashboard({ metrics, targetDate, entries = [] }) {
+export default function Dashboard({ metrics, entries = [] }) {
   if (!metrics) return null;
 
   const {
     isLosing,
-    totalDebt,
+    totalDeficit,
     days,
     dailyRequired,
     tdee,
@@ -172,6 +168,7 @@ export default function Dashboard({ metrics, targetDate, entries = [] }) {
     currentWeight,
     targetWeight,
     sex,
+    targetDate,
   } = metrics;
 
   // Progress from logged entries
@@ -180,21 +177,21 @@ export default function Dashboard({ metrics, targetDate, entries = [] }) {
       ? [...entries].sort((a, b) => b.date.localeCompare(a.date))[0]
       : null;
 
-  const remainingDebt = latestEntry
+  const remainingDeficit = latestEntry
     ? Math.abs(latestEntry.weight - targetWeight) * CALORIES_PER_POUND
-    : totalDebt;
-  const paidOff = Math.max(0, totalDebt - remainingDebt);
-  const progressPercent = totalDebt > 0 ? (paidOff / totalDebt) * 100 : 0;
-  const hasProgress = latestEntry && paidOff > 0;
+    : totalDeficit;
+  const completed = Math.max(0, totalDeficit - remainingDeficit);
+  const progressPercent = totalDeficit > 0 ? (completed / totalDeficit) * 100 : 0;
+  const hasProgress = latestEntry && completed > 0;
 
   // At goal state
   if (weightDiff < 0.1 || (latestEntry && Math.abs(latestEntry.weight - targetWeight) < 0.1)) {
     return (
       <div className="flex flex-col items-center justify-center py-20 text-center">
         <PartyPopper className="w-16 h-16 text-emerald-400 mb-4" />
-        <h2 className="text-2xl font-bold text-white mb-2">Debt Free!</h2>
+        <h2 className="text-2xl font-bold text-white mb-2">Goal Reached!</h2>
         <p className="text-zinc-400">
-          You've reached your target weight. Congratulations!
+          You've hit your target weight. Congratulations!
         </p>
       </div>
     );
@@ -222,7 +219,7 @@ export default function Dashboard({ metrics, targetDate, entries = [] }) {
     rateColor = 'text-rose-400';
   }
 
-  // Payment split percentages
+  // Deficit split percentages
   const dietPercent =
     dailyRequired > 0 ? Math.min(100, (dietDef / dailyRequired) * 100) : 0;
   const exercisePercent =
@@ -246,22 +243,21 @@ export default function Dashboard({ metrics, targetDate, entries = [] }) {
 
   return (
     <div className="space-y-3 pb-4">
-      {/* Hero - Debt with Progress */}
+      {/* Hero - Total Deficit */}
       <div className="bg-zinc-900 rounded-2xl p-6 border border-zinc-800/60 text-center">
         <div className="flex items-center justify-center gap-2 mb-3">
-          <DollarSign className="w-5 h-5 text-rose-400" />
+          <Flame className="w-5 h-5 text-rose-400" />
           <span className="text-xs font-semibold text-zinc-500 uppercase tracking-wider">
-            {hasProgress ? 'Remaining' : 'Total'} Calorie{' '}
-            {isLosing ? 'Debt' : 'Goal'}
+            {hasProgress ? 'Remaining' : 'Total'} Deficit
           </span>
         </div>
         <div className="text-4xl sm:text-5xl font-extrabold text-rose-400 tracking-tight font-mono">
-          {formatDebt(hasProgress ? remainingDebt : totalDebt)}
+          {formatCal(hasProgress ? remainingDeficit : totalDeficit)}
         </div>
         {hasProgress ? (
           <>
             <div className="text-sm text-zinc-500 mt-2">
-              of {formatDebt(totalDebt)} original debt
+              of {formatCal(totalDeficit)} total
             </div>
             {/* Progress bar */}
             <div className="mt-3 h-2.5 bg-zinc-800 rounded-full overflow-hidden">
@@ -272,7 +268,7 @@ export default function Dashboard({ metrics, targetDate, entries = [] }) {
             </div>
             <div className="flex justify-between text-xs mt-2">
               <span className="text-emerald-400 font-semibold">
-                {formatDebt(paidOff)} paid off
+                {formatCal(completed)} completed
               </span>
               <span className="text-zinc-500 font-mono">
                 {progressPercent.toFixed(0)}%
@@ -280,11 +276,9 @@ export default function Dashboard({ metrics, targetDate, entries = [] }) {
             </div>
           </>
         ) : (
-          <>
-            <div className="text-sm text-zinc-500 mt-2">
-              {weightDiff.toFixed(1)} lbs &times; $3,500/lb
-            </div>
-          </>
+          <div className="text-sm text-zinc-500 mt-2">
+            {weightDiff.toFixed(1)} lbs &times; 3,500 cal/lb
+          </div>
         )}
         <div className={`text-xs mt-2 font-semibold ${rateColor}`}>
           {isLosing ? (
@@ -300,27 +294,37 @@ export default function Dashboard({ metrics, targetDate, entries = [] }) {
       <div className="grid grid-cols-2 gap-3">
         <MetricCard
           icon={Calendar}
-          label="Payoff Date"
+          label="Goal Date"
           value={formattedDate}
           subtext={`${days} days (${weeks} wk${weeks !== 1 ? 's' : ''})`}
           accent="indigo"
         />
         <MetricCard
-          icon={DollarSign}
-          label="Daily Payment"
-          value={formatDebt(dailyRequired)}
-          subtext="deficit per day"
+          icon={Target}
+          label="Target Intake"
+          value={formatCal(targetIntake)}
+          subtext="eat this per day"
           accent="emerald"
         />
       </div>
 
-      {/* Payment Breakdown */}
+      {/* Daily Deficit Breakdown */}
       <div className="bg-zinc-900 rounded-2xl p-5 border border-zinc-800/60">
-        <h3 className="text-xs font-semibold text-zinc-500 uppercase tracking-wider mb-4">
-          Payment Plan
+        <h3 className="text-xs font-semibold text-zinc-500 uppercase tracking-wider mb-3">
+          Daily Deficit
         </h3>
 
-        {/* Visual bar */}
+        {/* Prominent daily deficit number */}
+        <div className="text-center mb-4">
+          <div className="text-3xl font-extrabold text-white font-mono">
+            {formatCal(dailyRequired)}
+          </div>
+          <div className="text-[11px] text-zinc-500 mt-1">
+            per day to reach your goal
+          </div>
+        </div>
+
+        {/* Split bar */}
         <div className="h-2.5 rounded-full bg-zinc-800 overflow-hidden flex mb-4">
           <div
             className="bg-amber-500 transition-all duration-500 rounded-l-full"
@@ -332,7 +336,7 @@ export default function Dashboard({ metrics, targetDate, entries = [] }) {
               width: `${exercisePercent}%`,
               borderRadius:
                 dietPercent === 0
-                  ? '9999px 9999px 9999px 9999px'
+                  ? '9999px'
                   : '0 9999px 9999px 0',
             }}
           />
@@ -343,10 +347,10 @@ export default function Dashboard({ metrics, targetDate, entries = [] }) {
             <div className="flex items-center gap-2.5">
               <div className="w-2.5 h-2.5 rounded-full bg-amber-500 shrink-0" />
               <Utensils className="w-4 h-4 text-zinc-600" />
-              <span className="text-sm text-zinc-300">Diet Cuts</span>
+              <span className="text-sm text-zinc-300">From Diet</span>
             </div>
             <span className="text-sm font-bold text-amber-400 font-mono">
-              {formatDebt(dietDef)}/day
+              {formatCal(dietDef)}
             </span>
           </div>
 
@@ -354,10 +358,10 @@ export default function Dashboard({ metrics, targetDate, entries = [] }) {
             <div className="flex items-center gap-2.5">
               <div className="w-2.5 h-2.5 rounded-full bg-emerald-500 shrink-0" />
               <Footprints className="w-4 h-4 text-zinc-600" />
-              <span className="text-sm text-zinc-300">Steps</span>
+              <span className="text-sm text-zinc-300">From Walking</span>
             </div>
             <span className="text-sm font-bold text-emerald-400 font-mono">
-              {formatDebt(Math.round(exerciseCalories))}/day
+              {formatCal(Math.round(exerciseCalories))}
             </span>
           </div>
 
@@ -368,21 +372,21 @@ export default function Dashboard({ metrics, targetDate, entries = [] }) {
         </div>
       </div>
 
-      {/* Your Finances */}
+      {/* Daily Calories */}
       <div className="bg-zinc-900 rounded-2xl p-5 border border-zinc-800/60">
         <h3 className="text-xs font-semibold text-zinc-500 uppercase tracking-wider mb-4">
-          Your Finances
+          Daily Calories
         </h3>
         <div className="space-y-3">
           <div className="flex justify-between items-center">
             <div className="flex items-center gap-2.5">
-              <Wallet className="w-4 h-4 text-zinc-600" />
+              <Activity className="w-4 h-4 text-zinc-600" />
               <span className="text-sm text-zinc-300">
-                Daily Salary <span className="text-zinc-600">(TDEE)</span>
+                Maintenance <span className="text-zinc-600">(TDEE)</span>
               </span>
             </div>
             <span className="text-sm font-bold text-zinc-200 font-mono">
-              {formatDebt(tdee)}
+              {formatCal(tdee)}
             </span>
           </div>
           <div className="h-px bg-zinc-800" />
@@ -390,11 +394,11 @@ export default function Dashboard({ metrics, targetDate, entries = [] }) {
             <div className="flex items-center gap-2.5">
               <Target className="w-4 h-4 text-zinc-600" />
               <span className="text-sm text-zinc-300">
-                Daily Budget <span className="text-zinc-600">(eat this)</span>
+                Target Intake
               </span>
             </div>
             <span className="text-sm font-bold text-emerald-400 font-mono">
-              {formatDebt(targetIntake)}
+              {formatCal(targetIntake)}
             </span>
           </div>
         </div>
@@ -436,7 +440,7 @@ export default function Dashboard({ metrics, targetDate, entries = [] }) {
           <div className="bg-zinc-900 rounded-2xl p-5 border border-zinc-800/60">
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-xs font-semibold text-zinc-500 uppercase tracking-wider">
-                Weight Over Time
+                Projected Weight
               </h3>
               {hasActual && (
                 <div className="flex items-center gap-3">
@@ -552,11 +556,11 @@ export default function Dashboard({ metrics, targetDate, entries = [] }) {
         );
       })()}
 
-      {/* Payoff Schedule */}
+      {/* Weight Projection */}
       {schedule.length > 0 && (
         <div className="bg-zinc-900 rounded-2xl p-5 border border-zinc-800/60">
           <h3 className="text-xs font-semibold text-zinc-500 uppercase tracking-wider mb-4">
-            Payoff Schedule
+            Monthly Milestones
           </h3>
           <div className="flex gap-2.5 overflow-x-auto pb-2 hide-scrollbar">
             {schedule.map((month, i) => (
@@ -598,7 +602,7 @@ export default function Dashboard({ metrics, targetDate, entries = [] }) {
             {lbsPerWeek > 2 && (
               <p>
                 Losing {lbsPerWeek.toFixed(1)} lbs/week exceeds the recommended
-                1&ndash;2 lbs/week. Consider extending your target date.
+                1&ndash;2 lbs/week. Consider a lower weekly rate.
               </p>
             )}
             {isLosing && targetIntake < minSafeIntake && (

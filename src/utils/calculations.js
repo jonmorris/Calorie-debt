@@ -25,8 +25,8 @@ export function calculateTDEE(weightLbs, heightInches, age, sex, activityLevel) 
   return bmr * (ACTIVITY_MULTIPLIERS[activityLevel] || 1.2);
 }
 
-// Total calorie debt (always positive)
-export function calculateTotalDebt(currentWeight, targetWeight) {
+// Total calorie deficit needed (always positive)
+export function calculateTotalDeficit(currentWeight, targetWeight) {
   return Math.abs(currentWeight - targetWeight) * CALORIES_PER_POUND;
 }
 
@@ -40,7 +40,6 @@ export function daysUntilTarget(targetDate) {
 }
 
 // Net calories burned from steps above baseline activity
-// ~0.04 cal/step at 155 lbs, scales linearly with weight
 export function caloriesFromSteps(steps, weightLbs) {
   return steps * weightLbs * 0.0002;
 }
@@ -49,9 +48,9 @@ export function isLosingWeight(currentWeight, targetWeight) {
   return currentWeight > targetWeight;
 }
 
-// Format number as currency-style
-export function formatDebt(amount) {
-  return '$' + Math.round(amount).toLocaleString();
+// Format number as calorie amount
+export function formatCal(amount) {
+  return Math.round(amount).toLocaleString() + ' cal';
 }
 
 // Calculate all dashboard metrics from settings
@@ -64,27 +63,41 @@ export function calculateAll(settings) {
     age,
     sex,
     activityLevel,
-    targetDate,
+    planMode,
+    lbsPerWeek: settingLbsPerWeek,
+    targetDate: settingTargetDate,
     dailyStepGoal,
   } = settings;
 
   const totalHeightInches = heightFeet * 12 + heightInches;
   const isLosing = isLosingWeight(currentWeight, targetWeight);
-  const totalDebt = calculateTotalDebt(currentWeight, targetWeight);
-  const days = daysUntilTarget(targetDate);
-  const dailyRequired = totalDebt / days;
+  const weightDiff = Math.abs(currentWeight - targetWeight);
+  const totalDeficit = calculateTotalDeficit(currentWeight, targetWeight);
+
+  // Determine effective target date and lbs/week based on plan mode
+  let days, lbsPerWeek, targetDate;
+  if (planMode === 'lbsPerWeek') {
+    lbsPerWeek = Math.max(0.1, settingLbsPerWeek || 1.5);
+    days = weightDiff > 0 ? Math.max(1, Math.ceil((weightDiff / lbsPerWeek) * 7)) : 1;
+    const d = new Date();
+    d.setDate(d.getDate() + days);
+    targetDate = d.toISOString().split('T')[0];
+  } else {
+    targetDate = settingTargetDate;
+    days = daysUntilTarget(settingTargetDate);
+    lbsPerWeek = weightDiff / (days / 7);
+  }
+
+  const dailyRequired = totalDeficit / days;
   const tdee = calculateTDEE(currentWeight, totalHeightInches, age, sex, activityLevel);
   const bmr = calculateBMR(currentWeight, totalHeightInches, age, sex);
   const exerciseCalories = caloriesFromSteps(dailyStepGoal, currentWeight);
   const dietPortion = Math.max(0, dailyRequired - exerciseCalories);
   const targetIntake = isLosing ? tdee - dietPortion : tdee + dietPortion;
-  const weightDiff = Math.abs(currentWeight - targetWeight);
-  const weeksToTarget = days / 7;
-  const lbsPerWeek = weightDiff / weeksToTarget;
 
   return {
     isLosing,
-    totalDebt,
+    totalDeficit,
     days,
     dailyRequired,
     tdee,
@@ -98,5 +111,6 @@ export function calculateAll(settings) {
     targetWeight,
     dailyStepGoal,
     sex,
+    targetDate,
   };
 }

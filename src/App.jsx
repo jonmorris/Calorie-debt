@@ -22,6 +22,8 @@ const DEFAULT_SETTINGS = {
   age: 30,
   sex: 'male',
   activityLevel: 'sedentary',
+  planMode: 'lbsPerWeek',
+  lbsPerWeek: 1.5,
   targetDate: getDefaultDate(),
   dailyStepGoal: 10000,
 }
@@ -74,9 +76,8 @@ export default function App() {
       <header className="sticky top-0 z-20 bg-zinc-950/80 backdrop-blur-xl border-b border-zinc-800/40">
         <div className="max-w-lg mx-auto flex items-center justify-between px-4 py-3">
           <h1 className="text-lg font-bold tracking-tight">
-            <span className="text-emerald-400">$</span>
             <span className="text-white">Calorie</span>
-            <span className="text-zinc-400">Debt</span>
+            <span className="text-emerald-400">Debt</span>
           </h1>
           <span className="text-[11px] text-zinc-600 font-mono tabular-nums">
             {settings.currentWeight} &rarr; {settings.targetWeight} lbs
@@ -88,11 +89,7 @@ export default function App() {
       <main className="flex-1 px-4 py-4 overflow-y-auto">
         <div className="max-w-lg mx-auto">
           {tab === 'dashboard' && (
-            <Dashboard
-              metrics={metrics}
-              targetDate={settings.targetDate}
-              entries={entries}
-            />
+            <Dashboard metrics={metrics} entries={entries} />
           )}
           {tab === 'track' && (
             <Track entries={entries} onAdd={addEntry} onDelete={deleteEntry} />
