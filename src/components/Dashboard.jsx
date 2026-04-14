@@ -12,15 +12,16 @@ import {
 } from 'lucide-react';
 import {
   ResponsiveContainer,
-  AreaChart,
+  ComposedChart,
   Area,
+  Line,
   XAxis,
   YAxis,
   CartesianGrid,
   Tooltip,
   ReferenceLine,
 } from 'recharts';
-import { formatDebt } from '../utils/calculations';
+import { formatDebt, CALORIES_PER_POUND } from '../utils/calculations';
 
 function MetricCard({ icon: Icon, label, value, subtext, accent = 'emerald' }) {
   const colors = {
@@ -72,35 +73,62 @@ function generateSchedule(currentWeight, targetWeight, lbsPerWeek, targetDate, i
   return schedule;
 }
 
-function generateChartData(currentWeight, targetWeight, lbsPerWeek, targetDate, isLosing) {
-  const data = [];
+function generateChartData(currentWeight, targetWeight, lbsPerWeek, targetDate, isLosing, entries) {
   const now = new Date();
+  now.setHours(0, 0, 0, 0);
   const end = new Date(targetDate + 'T00:00:00');
-  let weight = currentWeight;
-  const lbsPerWeekSigned = isLosing ? -lbsPerWeek : lbsPerWeek;
+  const lbsPerDay = lbsPerWeek / 7;
 
-  // Start point
-  data.push({
-    label: now.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
-    weight: Math.round(currentWeight * 10) / 10,
-    target: targetWeight,
-  });
+  const getProjected = (date) => {
+    const days = (date - now) / (1000 * 60 * 60 * 24);
+    const w = currentWeight + (isLosing ? -1 : 1) * lbsPerDay * days;
+    return isLosing ? Math.max(targetWeight, w) : Math.min(targetWeight, w);
+  };
 
-  // Weekly data points
+  const formatLabel = (d) =>
+    d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  const toDateStr = (d) => {
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${y}-${m}-${day}`;
+  };
+
+  // Collect all dates: weekly projected + actual entry dates
+  const dateMap = new Map();
+
   const cursor = new Date(now);
-  cursor.setDate(cursor.getDate() + 7);
-
-  while (cursor <= end && data.length < 100) {
-    weight += lbsPerWeekSigned;
-    const clampedWeight = isLosing
-      ? Math.max(targetWeight, weight)
-      : Math.min(targetWeight, weight);
-    data.push({
-      label: cursor.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
-      weight: Math.round(clampedWeight * 10) / 10,
-      target: targetWeight,
-    });
+  while (cursor <= end) {
+    const ds = toDateStr(cursor);
+    dateMap.set(ds, new Date(cursor));
     cursor.setDate(cursor.getDate() + 7);
+  }
+  // Ensure end date included
+  const endStr = toDateStr(end);
+  if (!dateMap.has(endStr)) {
+    dateMap.set(endStr, new Date(end));
+  }
+
+  // Add entry dates
+  const actualMap = new Map();
+  for (const entry of entries) {
+    actualMap.set(entry.date, entry.weight);
+    const d = new Date(entry.date + 'T00:00:00');
+    if (!dateMap.has(entry.date)) {
+      dateMap.set(entry.date, d);
+    }
+  }
+
+  // Sort and build data
+  const sorted = [...dateMap.entries()].sort((a, b) => a[0].localeCompare(b[0]));
+  const data = [];
+  for (const [ds, date] of sorted) {
+    data.push({
+      label: formatLabel(date),
+      dateStr: ds,
+      projected: Math.round(getProjected(date) * 10) / 10,
+      actual: actualMap.has(ds) ? actualMap.get(ds) : null,
+    });
   }
 
   return data;
@@ -108,17 +136,25 @@ function generateChartData(currentWeight, targetWeight, lbsPerWeek, targetDate, 
 
 function CustomTooltip({ active, payload }) {
   if (!active || !payload?.length) return null;
+  const data = payload[0]?.payload;
   return (
     <div className="bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 shadow-xl">
-      <p className="text-[11px] text-zinc-400">{payload[0]?.payload?.label}</p>
-      <p className="text-sm font-bold text-white font-mono">
-        {payload[0]?.value} lbs
-      </p>
+      <p className="text-[11px] text-zinc-400 mb-1">{data?.label}</p>
+      {data?.projected != null && (
+        <p className="text-xs font-semibold text-emerald-400 font-mono">
+          Plan: {data.projected} lbs
+        </p>
+      )}
+      {data?.actual != null && (
+        <p className="text-xs font-semibold text-blue-400 font-mono">
+          Actual: {data.actual} lbs
+        </p>
+      )}
     </div>
   );
 }
 
-export default function Dashboard({ metrics, targetDate }) {
+export default function Dashboard({ metrics, targetDate, entries = [] }) {
   if (!metrics) return null;
 
   const {
@@ -138,14 +174,27 @@ export default function Dashboard({ metrics, targetDate }) {
     sex,
   } = metrics;
 
+  // Progress from logged entries
+  const latestEntry =
+    entries.length > 0
+      ? [...entries].sort((a, b) => b.date.localeCompare(a.date))[0]
+      : null;
+
+  const remainingDebt = latestEntry
+    ? Math.abs(latestEntry.weight - targetWeight) * CALORIES_PER_POUND
+    : totalDebt;
+  const paidOff = Math.max(0, totalDebt - remainingDebt);
+  const progressPercent = totalDebt > 0 ? (paidOff / totalDebt) * 100 : 0;
+  const hasProgress = latestEntry && paidOff > 0;
+
   // At goal state
-  if (weightDiff < 0.1) {
+  if (weightDiff < 0.1 || (latestEntry && Math.abs(latestEntry.weight - targetWeight) < 0.1)) {
     return (
       <div className="flex flex-col items-center justify-center py-20 text-center">
         <PartyPopper className="w-16 h-16 text-emerald-400 mb-4" />
         <h2 className="text-2xl font-bold text-white mb-2">Debt Free!</h2>
         <p className="text-zinc-400">
-          You're already at your target weight. Adjust your goals in Settings.
+          You've reached your target weight. Congratulations!
         </p>
       </div>
     );
@@ -175,9 +224,7 @@ export default function Dashboard({ metrics, targetDate }) {
 
   // Payment split percentages
   const dietPercent =
-    dailyRequired > 0
-      ? Math.min(100, (dietDef / dailyRequired) * 100)
-      : 0;
+    dailyRequired > 0 ? Math.min(100, (dietDef / dailyRequired) * 100) : 0;
   const exercisePercent =
     dailyRequired > 0
       ? Math.min(100 - dietPercent, (exerciseCalories / dailyRequired) * 100)
@@ -194,24 +241,51 @@ export default function Dashboard({ metrics, targetDate }) {
 
   // Safety thresholds
   const minSafeIntake = sex === 'male' ? 1500 : 1200;
-  const hasWarnings = lbsPerWeek > 2 || (isLosing && targetIntake < minSafeIntake);
+  const hasWarnings =
+    lbsPerWeek > 2 || (isLosing && targetIntake < minSafeIntake);
 
   return (
     <div className="space-y-3 pb-4">
-      {/* Hero - Total Debt */}
+      {/* Hero - Debt with Progress */}
       <div className="bg-zinc-900 rounded-2xl p-6 border border-zinc-800/60 text-center">
         <div className="flex items-center justify-center gap-2 mb-3">
           <DollarSign className="w-5 h-5 text-rose-400" />
           <span className="text-xs font-semibold text-zinc-500 uppercase tracking-wider">
-            Total Calorie {isLosing ? 'Debt' : 'Goal'}
+            {hasProgress ? 'Remaining' : 'Total'} Calorie{' '}
+            {isLosing ? 'Debt' : 'Goal'}
           </span>
         </div>
         <div className="text-4xl sm:text-5xl font-extrabold text-rose-400 tracking-tight font-mono">
-          {formatDebt(totalDebt)}
+          {formatDebt(hasProgress ? remainingDebt : totalDebt)}
         </div>
-        <div className="text-sm text-zinc-500 mt-2">
-          {weightDiff.toFixed(1)} lbs &times; $3,500/lb
-        </div>
+        {hasProgress ? (
+          <>
+            <div className="text-sm text-zinc-500 mt-2">
+              of {formatDebt(totalDebt)} original debt
+            </div>
+            {/* Progress bar */}
+            <div className="mt-3 h-2.5 bg-zinc-800 rounded-full overflow-hidden">
+              <div
+                className="h-full bg-emerald-500 rounded-full transition-all duration-700"
+                style={{ width: `${Math.min(100, progressPercent)}%` }}
+              />
+            </div>
+            <div className="flex justify-between text-xs mt-2">
+              <span className="text-emerald-400 font-semibold">
+                {formatDebt(paidOff)} paid off
+              </span>
+              <span className="text-zinc-500 font-mono">
+                {progressPercent.toFixed(0)}%
+              </span>
+            </div>
+          </>
+        ) : (
+          <>
+            <div className="text-sm text-zinc-500 mt-2">
+              {weightDiff.toFixed(1)} lbs &times; $3,500/lb
+            </div>
+          </>
+        )}
         <div className={`text-xs mt-2 font-semibold ${rateColor}`}>
           {isLosing ? (
             <TrendingDown className="w-3 h-3 inline mr-1" />
@@ -256,7 +330,10 @@ export default function Dashboard({ metrics, targetDate }) {
             className="bg-emerald-500 transition-all duration-500"
             style={{
               width: `${exercisePercent}%`,
-              borderRadius: dietPercent === 0 ? '9999px 9999px 9999px 9999px' : '0 9999px 9999px 0',
+              borderRadius:
+                dietPercent === 0
+                  ? '9999px 9999px 9999px 9999px'
+                  : '0 9999px 9999px 0',
             }}
           />
         </div>
@@ -323,39 +400,88 @@ export default function Dashboard({ metrics, targetDate }) {
         </div>
       </div>
 
-      {/* Projected Weight Chart */}
+      {/* Weight Chart - Projected vs Actual */}
       {(() => {
         const chartData = generateChartData(
-          currentWeight, targetWeight, lbsPerWeek, targetDate, isLosing
+          currentWeight,
+          targetWeight,
+          lbsPerWeek,
+          targetDate,
+          isLosing,
+          entries
         );
         if (chartData.length < 2) return null;
 
-        const weights = chartData.map(d => d.weight);
-        const allValues = [...weights, targetWeight];
+        const projectedVals = chartData.map((d) => d.projected);
+        const actualVals = chartData
+          .filter((d) => d.actual != null)
+          .map((d) => d.actual);
+        const allValues = [...projectedVals, ...actualVals, targetWeight];
         const minW = Math.floor(Math.min(...allValues) / 5) * 5 - 5;
         const maxW = Math.ceil(Math.max(...allValues) / 5) * 5 + 5;
 
-        // Show ~6 evenly-spaced tick labels
         const tickInterval = Math.max(1, Math.floor(chartData.length / 6));
         const ticks = chartData
-          .filter((_, i) => i === 0 || i === chartData.length - 1 || i % tickInterval === 0)
-          .map(d => d.label);
+          .filter(
+            (_, i) =>
+              i === 0 ||
+              i === chartData.length - 1 ||
+              i % tickInterval === 0
+          )
+          .map((d) => d.label);
+
+        const hasActual = actualVals.length > 0;
 
         return (
           <div className="bg-zinc-900 rounded-2xl p-5 border border-zinc-800/60">
-            <h3 className="text-xs font-semibold text-zinc-500 uppercase tracking-wider mb-4">
-              Projected Weight
-            </h3>
-            <div className="h-52 -ml-2">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-xs font-semibold text-zinc-500 uppercase tracking-wider">
+                Weight Over Time
+              </h3>
+              {hasActual && (
+                <div className="flex items-center gap-3">
+                  <div className="flex items-center gap-1.5">
+                    <div className="w-2 h-2 rounded-full bg-emerald-400" />
+                    <span className="text-[10px] text-zinc-500">Plan</span>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <div className="w-2 h-2 rounded-full bg-blue-400" />
+                    <span className="text-[10px] text-zinc-500">Actual</span>
+                  </div>
+                </div>
+              )}
+            </div>
+            <div className="h-56 -ml-2">
               <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={chartData} margin={{ top: 5, right: 10, bottom: 0, left: 0 }}>
+                <ComposedChart
+                  data={chartData}
+                  margin={{ top: 5, right: 10, bottom: 0, left: 0 }}
+                >
                   <defs>
-                    <linearGradient id="weightGradient" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="0%" stopColor="#34d399" stopOpacity={0.3} />
-                      <stop offset="100%" stopColor="#34d399" stopOpacity={0} />
+                    <linearGradient
+                      id="weightGradient"
+                      x1="0"
+                      y1="0"
+                      x2="0"
+                      y2="1"
+                    >
+                      <stop
+                        offset="0%"
+                        stopColor="#34d399"
+                        stopOpacity={0.25}
+                      />
+                      <stop
+                        offset="100%"
+                        stopColor="#34d399"
+                        stopOpacity={0}
+                      />
                     </linearGradient>
                   </defs>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#27272a" vertical={false} />
+                  <CartesianGrid
+                    strokeDasharray="3 3"
+                    stroke="#27272a"
+                    vertical={false}
+                  />
                   <XAxis
                     dataKey="label"
                     tick={{ fontSize: 10, fill: '#52525b' }}
@@ -370,14 +496,13 @@ export default function Dashboard({ metrics, targetDate }) {
                     tickLine={false}
                     axisLine={false}
                     width={40}
-                    tickFormatter={(v) => `${v}`}
                   />
                   <Tooltip content={<CustomTooltip />} />
                   <ReferenceLine
                     y={targetWeight}
                     stroke="#f43f5e"
                     strokeDasharray="6 3"
-                    strokeOpacity={0.6}
+                    strokeOpacity={0.5}
                     label={{
                       value: `Goal: ${targetWeight}`,
                       position: 'right',
@@ -387,14 +512,40 @@ export default function Dashboard({ metrics, targetDate }) {
                   />
                   <Area
                     type="monotone"
-                    dataKey="weight"
+                    dataKey="projected"
                     stroke="#34d399"
-                    strokeWidth={2.5}
+                    strokeWidth={2}
                     fill="url(#weightGradient)"
                     dot={false}
-                    activeDot={{ r: 4, fill: '#34d399', stroke: '#0a0a0a', strokeWidth: 2 }}
+                    activeDot={{
+                      r: 4,
+                      fill: '#34d399',
+                      stroke: '#18181b',
+                      strokeWidth: 2,
+                    }}
                   />
-                </AreaChart>
+                  {hasActual && (
+                    <Line
+                      type="monotone"
+                      dataKey="actual"
+                      stroke="#60a5fa"
+                      strokeWidth={2.5}
+                      dot={{
+                        r: 4,
+                        fill: '#60a5fa',
+                        stroke: '#18181b',
+                        strokeWidth: 2,
+                      }}
+                      activeDot={{
+                        r: 5,
+                        fill: '#60a5fa',
+                        stroke: '#18181b',
+                        strokeWidth: 2,
+                      }}
+                      connectNulls
+                    />
+                  )}
+                </ComposedChart>
               </ResponsiveContainer>
             </div>
           </div>

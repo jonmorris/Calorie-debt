@@ -1,10 +1,12 @@
 import { useState, useEffect, useMemo } from 'react'
-import { LayoutDashboard, SlidersHorizontal } from 'lucide-react'
+import { LayoutDashboard, PenLine, SlidersHorizontal } from 'lucide-react'
 import Dashboard from './components/Dashboard'
+import Track from './components/Track'
 import Settings from './components/Settings'
 import { calculateAll } from './utils/calculations'
 
-const STORAGE_KEY = 'caloriedebt_settings'
+const SETTINGS_KEY = 'caloriedebt_settings'
+const ENTRIES_KEY = 'caloriedebt_entries'
 
 function getDefaultDate() {
   const d = new Date()
@@ -24,29 +26,45 @@ const DEFAULT_SETTINGS = {
   dailyStepGoal: 10000,
 }
 
-function loadSettings() {
+function loadJSON(key, fallback) {
   try {
-    const stored = localStorage.getItem(STORAGE_KEY)
-    if (stored) {
-      return { ...DEFAULT_SETTINGS, ...JSON.parse(stored) }
-    }
+    const stored = localStorage.getItem(key)
+    if (stored) return JSON.parse(stored)
   } catch {
-    // ignore parse errors
+    // ignore
   }
-  return { ...DEFAULT_SETTINGS }
+  return fallback
+}
+
+function saveJSON(key, value) {
+  try {
+    localStorage.setItem(key, JSON.stringify(value))
+  } catch {
+    // ignore
+  }
 }
 
 export default function App() {
   const [tab, setTab] = useState('dashboard')
-  const [settings, setSettings] = useState(loadSettings)
+  const [settings, setSettings] = useState(() => ({
+    ...DEFAULT_SETTINGS,
+    ...loadJSON(SETTINGS_KEY, {}),
+  }))
+  const [entries, setEntries] = useState(() => loadJSON(ENTRIES_KEY, []))
 
-  useEffect(() => {
-    try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(settings))
-    } catch {
-      // ignore storage errors
-    }
-  }, [settings])
+  useEffect(() => { saveJSON(SETTINGS_KEY, settings) }, [settings])
+  useEffect(() => { saveJSON(ENTRIES_KEY, entries) }, [entries])
+
+  const addEntry = (entry) => {
+    setEntries((prev) => {
+      const filtered = prev.filter((e) => e.date !== entry.date)
+      return [...filtered, entry]
+    })
+  }
+
+  const deleteEntry = (date) => {
+    setEntries((prev) => prev.filter((e) => e.date !== date))
+  }
 
   const metrics = useMemo(() => calculateAll(settings), [settings])
 
@@ -69,9 +87,17 @@ export default function App() {
       {/* Content */}
       <main className="flex-1 px-4 py-4 overflow-y-auto">
         <div className="max-w-lg mx-auto">
-          {tab === 'dashboard' ? (
-            <Dashboard metrics={metrics} targetDate={settings.targetDate} />
-          ) : (
+          {tab === 'dashboard' && (
+            <Dashboard
+              metrics={metrics}
+              targetDate={settings.targetDate}
+              entries={entries}
+            />
+          )}
+          {tab === 'track' && (
+            <Track entries={entries} onAdd={addEntry} onDelete={deleteEntry} />
+          )}
+          {tab === 'settings' && (
             <Settings settings={settings} onChange={setSettings} />
           )}
         </div>
@@ -82,6 +108,7 @@ export default function App() {
         <div className="max-w-lg mx-auto flex" style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}>
           {[
             { id: 'dashboard', icon: LayoutDashboard, label: 'Dashboard' },
+            { id: 'track', icon: PenLine, label: 'Track' },
             { id: 'settings', icon: SlidersHorizontal, label: 'Settings' },
           ].map(({ id, icon: Icon, label }) => (
             <button
