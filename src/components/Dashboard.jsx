@@ -10,6 +10,16 @@ import {
   TrendingUp,
   PartyPopper,
 } from 'lucide-react';
+import {
+  ResponsiveContainer,
+  AreaChart,
+  Area,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  ReferenceLine,
+} from 'recharts';
 import { formatDebt } from '../utils/calculations';
 
 function MetricCard({ icon: Icon, label, value, subtext, accent = 'emerald' }) {
@@ -60,6 +70,52 @@ function generateSchedule(currentWeight, targetWeight, lbsPerWeek, targetDate, i
   }
 
   return schedule;
+}
+
+function generateChartData(currentWeight, targetWeight, lbsPerWeek, targetDate, isLosing) {
+  const data = [];
+  const now = new Date();
+  const end = new Date(targetDate + 'T00:00:00');
+  let weight = currentWeight;
+  const lbsPerWeekSigned = isLosing ? -lbsPerWeek : lbsPerWeek;
+
+  // Start point
+  data.push({
+    label: now.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+    weight: Math.round(currentWeight * 10) / 10,
+    target: targetWeight,
+  });
+
+  // Weekly data points
+  const cursor = new Date(now);
+  cursor.setDate(cursor.getDate() + 7);
+
+  while (cursor <= end && data.length < 100) {
+    weight += lbsPerWeekSigned;
+    const clampedWeight = isLosing
+      ? Math.max(targetWeight, weight)
+      : Math.min(targetWeight, weight);
+    data.push({
+      label: cursor.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+      weight: Math.round(clampedWeight * 10) / 10,
+      target: targetWeight,
+    });
+    cursor.setDate(cursor.getDate() + 7);
+  }
+
+  return data;
+}
+
+function CustomTooltip({ active, payload }) {
+  if (!active || !payload?.length) return null;
+  return (
+    <div className="bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 shadow-xl">
+      <p className="text-[11px] text-zinc-400">{payload[0]?.payload?.label}</p>
+      <p className="text-sm font-bold text-white font-mono">
+        {payload[0]?.value} lbs
+      </p>
+    </div>
+  );
 }
 
 export default function Dashboard({ metrics, targetDate }) {
@@ -266,6 +322,84 @@ export default function Dashboard({ metrics, targetDate }) {
           </div>
         </div>
       </div>
+
+      {/* Projected Weight Chart */}
+      {(() => {
+        const chartData = generateChartData(
+          currentWeight, targetWeight, lbsPerWeek, targetDate, isLosing
+        );
+        if (chartData.length < 2) return null;
+
+        const weights = chartData.map(d => d.weight);
+        const allValues = [...weights, targetWeight];
+        const minW = Math.floor(Math.min(...allValues) / 5) * 5 - 5;
+        const maxW = Math.ceil(Math.max(...allValues) / 5) * 5 + 5;
+
+        // Show ~6 evenly-spaced tick labels
+        const tickInterval = Math.max(1, Math.floor(chartData.length / 6));
+        const ticks = chartData
+          .filter((_, i) => i === 0 || i === chartData.length - 1 || i % tickInterval === 0)
+          .map(d => d.label);
+
+        return (
+          <div className="bg-zinc-900 rounded-2xl p-5 border border-zinc-800/60">
+            <h3 className="text-xs font-semibold text-zinc-500 uppercase tracking-wider mb-4">
+              Projected Weight
+            </h3>
+            <div className="h-52 -ml-2">
+              <ResponsiveContainer width="100%" height="100%">
+                <AreaChart data={chartData} margin={{ top: 5, right: 10, bottom: 0, left: 0 }}>
+                  <defs>
+                    <linearGradient id="weightGradient" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="#34d399" stopOpacity={0.3} />
+                      <stop offset="100%" stopColor="#34d399" stopOpacity={0} />
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#27272a" vertical={false} />
+                  <XAxis
+                    dataKey="label"
+                    tick={{ fontSize: 10, fill: '#52525b' }}
+                    tickLine={false}
+                    axisLine={{ stroke: '#27272a' }}
+                    ticks={ticks}
+                    interval="preserveStartEnd"
+                  />
+                  <YAxis
+                    domain={[minW, maxW]}
+                    tick={{ fontSize: 10, fill: '#52525b' }}
+                    tickLine={false}
+                    axisLine={false}
+                    width={40}
+                    tickFormatter={(v) => `${v}`}
+                  />
+                  <Tooltip content={<CustomTooltip />} />
+                  <ReferenceLine
+                    y={targetWeight}
+                    stroke="#f43f5e"
+                    strokeDasharray="6 3"
+                    strokeOpacity={0.6}
+                    label={{
+                      value: `Goal: ${targetWeight}`,
+                      position: 'right',
+                      fill: '#f43f5e',
+                      fontSize: 10,
+                    }}
+                  />
+                  <Area
+                    type="monotone"
+                    dataKey="weight"
+                    stroke="#34d399"
+                    strokeWidth={2.5}
+                    fill="url(#weightGradient)"
+                    dot={false}
+                    activeDot={{ r: 4, fill: '#34d399', stroke: '#0a0a0a', strokeWidth: 2 }}
+                  />
+                </AreaChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+        );
+      })()}
 
       {/* Payoff Schedule */}
       {schedule.length > 0 && (
