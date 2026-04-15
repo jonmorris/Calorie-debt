@@ -149,15 +149,22 @@ function generateWeightChartData(currentWeight, targetWeight, lbsPerWeek, target
     }
   }
 
-  // Build base data
-  const data = sorted.map(([ds, date]) => ({
-    label: fmtLabel(date),
-    dateStr: ds,
-    projected: Math.round(getProjected(date) * 10) / 10,
-    actual: actualMap.has(ds) ? actualMap.get(ds) : null,
-    revised: null,
-    dotColor: dotColors.get(ds) || '#60a5fa',
-  }));
+  // Build base data with ±8% range band
+  const RANGE = 0.08;
+  const data = sorted.map(([ds, date]) => {
+    const proj = Math.round(getProjected(date) * 10) / 10;
+    const loss = currentWeight - proj;
+    return {
+      label: fmtLabel(date),
+      dateStr: ds,
+      projected: proj,
+      planHigh: Math.round((proj + loss * RANGE) * 10) / 10,
+      planLow: Math.round((proj - loss * RANGE) * 10) / 10,
+      actual: actualMap.has(ds) ? actualMap.get(ds) : null,
+      revised: null,
+      dotColor: dotColors.get(ds) || '#60a5fa',
+    };
+  });
 
   // Revised projection: from latest actual entry forward at same rate
   if (actualEntries.length > 0) {
@@ -210,7 +217,12 @@ function generateDeficitChartData(targetWeight, totalDeficit, days, targetDate, 
       ));
     }
 
-    return { label: fmtLabel(date), dateStr: ds, planned, actual, revised: null };
+    const progress = totalDeficit - planned;
+    return {
+      label: fmtLabel(date), dateStr: ds, planned, actual, revised: null,
+      planHigh: Math.round(planned + progress * 0.08),
+      planLow: Math.max(0, Math.round(planned - progress * 0.08)),
+    };
   });
 
   // Compute dot colors: one green (lowest balance), red (higher than prev), blue (default)
@@ -574,6 +586,8 @@ export default function Dashboard({ metrics, entries = [] }) {
                     strokeOpacity={0.4}
                     label={{ value: 'Goal', position: 'right', fill: '#34d399', fontSize: 10 }}
                   />
+                  <Line type="monotone" dataKey="planHigh" stroke="#f87171" strokeWidth={0.5} strokeOpacity={0.3} dot={false} activeDot={false} />
+                  <Line type="monotone" dataKey="planLow" stroke="#f87171" strokeWidth={0.5} strokeOpacity={0.3} dot={false} activeDot={false} />
                   <Area
                     type="monotone"
                     dataKey="planned"
@@ -753,7 +767,9 @@ export default function Dashboard({ metrics, entries = [] }) {
         const actualVals = chartData.filter((d) => d.actual != null).map((d) => d.actual);
         const revisedVals = chartData.filter((d) => d.revised != null).map((d) => d.revised);
         const trendVals = chartData.filter((d) => d.trend != null).map((d) => d.trend);
-        const allValues = [...projectedVals, ...actualVals, ...revisedVals, ...trendVals, targetWeight];
+        const highVals = chartData.map((d) => d.planHigh);
+        const lowVals = chartData.map((d) => d.planLow);
+        const allValues = [...projectedVals, ...actualVals, ...revisedVals, ...trendVals, ...highVals, ...lowVals, targetWeight];
         const minW = Math.floor(Math.min(...allValues) / 5) * 5 - 5;
         const maxW = Math.ceil(Math.max(...allValues) / 5) * 5 + 5;
 
@@ -816,6 +832,8 @@ export default function Dashboard({ metrics, entries = [] }) {
                     strokeOpacity={0.5}
                     label={{ value: `Goal: ${targetWeight}`, position: 'right', fill: '#f43f5e', fontSize: 10 }}
                   />
+                  <Line type="monotone" dataKey="planHigh" stroke="#34d399" strokeWidth={0.5} strokeOpacity={0.3} dot={false} activeDot={false} />
+                  <Line type="monotone" dataKey="planLow" stroke="#34d399" strokeWidth={0.5} strokeOpacity={0.3} dot={false} activeDot={false} />
                   <Area
                     type="monotone"
                     dataKey="projected"
@@ -928,6 +946,8 @@ export default function Dashboard({ metrics, entries = [] }) {
                   <YAxis domain={[0, maxVal]} tick={{ fontSize: 11, fill: '#52525b' }} tickLine={false} axisLine={false} width={52} tickFormatter={(v) => v >= 1000 ? `${Math.round(v / 1000)}k` : `${v}`} />
                   <Tooltip content={<DeficitTooltip />} />
                   <ReferenceLine y={0} stroke="#34d399" strokeDasharray="6 3" strokeOpacity={0.4} />
+                  <Line type="monotone" dataKey="planHigh" stroke="#f87171" strokeWidth={0.5} strokeOpacity={0.3} dot={false} activeDot={false} />
+                  <Line type="monotone" dataKey="planLow" stroke="#f87171" strokeWidth={0.5} strokeOpacity={0.3} dot={false} activeDot={false} />
                   <Area type="monotone" dataKey="planned" stroke="#f87171" strokeWidth={2} fill="url(#deficitGradFull)" dot={false} />
                   {hasActualDeficit && (
                     <>
@@ -966,6 +986,8 @@ export default function Dashboard({ metrics, entries = [] }) {
                   <YAxis domain={[minW, maxW]} tick={{ fontSize: 11, fill: '#52525b' }} tickLine={false} axisLine={false} width={44} />
                   <Tooltip content={<WeightTooltip />} />
                   <ReferenceLine y={targetWeight} stroke="#f43f5e" strokeDasharray="6 3" strokeOpacity={0.5} />
+                  <Line type="monotone" dataKey="planHigh" stroke="#34d399" strokeWidth={0.5} strokeOpacity={0.3} dot={false} activeDot={false} />
+                  <Line type="monotone" dataKey="planLow" stroke="#34d399" strokeWidth={0.5} strokeOpacity={0.3} dot={false} activeDot={false} />
                   <Area type="monotone" dataKey="projected" stroke="#34d399" strokeWidth={2} fill="url(#weightGradFull)" dot={false} />
                   {hasActual && (
                     <>
