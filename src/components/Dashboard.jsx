@@ -112,14 +112,35 @@ function generateWeightChartData(currentWeight, targetWeight, lbsPerWeek, target
     if (!dateMap.has(entry.date)) dateMap.set(entry.date, new Date(entry.date + 'T00:00:00'));
   }
 
-  return [...dateMap.entries()]
-    .sort((a, b) => a[0].localeCompare(b[0]))
-    .map(([ds, date]) => ({
-      label: fmtLabel(date),
-      dateStr: ds,
-      projected: Math.round(getProjected(date) * 10) / 10,
-      actual: actualMap.has(ds) ? actualMap.get(ds) : null,
-    }));
+  const sorted = [...dateMap.entries()].sort((a, b) => a[0].localeCompare(b[0]));
+
+  // Compute dot colors based on weight trajectory
+  const actualEntries = sorted
+    .filter(([ds]) => actualMap.has(ds))
+    .map(([ds]) => ({ date: ds, weight: actualMap.get(ds) }));
+
+  const dotColors = new Map();
+  let lowestWeight = Infinity;
+  let prevWeight = null;
+  for (const entry of actualEntries) {
+    let color = '#60a5fa'; // blue default
+    if (prevWeight !== null && entry.weight > prevWeight) {
+      color = '#f87171'; // red - went up
+    } else if (entry.weight < lowestWeight) {
+      color = '#34d399'; // green - new low
+    }
+    if (entry.weight < lowestWeight) lowestWeight = entry.weight;
+    prevWeight = entry.weight;
+    dotColors.set(entry.date, color);
+  }
+
+  return sorted.map(([ds, date]) => ({
+    label: fmtLabel(date),
+    dateStr: ds,
+    projected: Math.round(getProjected(date) * 10) / 10,
+    actual: actualMap.has(ds) ? actualMap.get(ds) : null,
+    dotColor: dotColors.get(ds) || '#60a5fa',
+  }));
 }
 
 function generateDeficitChartData(targetWeight, totalDeficit, days, targetDate, isLosing, entries) {
@@ -141,23 +162,55 @@ function generateDeficitChartData(targetWeight, totalDeficit, days, targetDate, 
     if (!dateMap.has(entry.date)) dateMap.set(entry.date, new Date(entry.date + 'T00:00:00'));
   }
 
-  return [...dateMap.entries()]
-    .sort((a, b) => a[0].localeCompare(b[0]))
-    .map(([ds, date]) => {
-      // Planned: remaining balance drops linearly from totalDeficit to 0
-      const daysSinceStart = Math.max(0, (date - now) / (1000 * 60 * 60 * 24));
-      const planned = Math.max(0, Math.round(totalDeficit * (1 - daysSinceStart / days)));
+  const sorted = [...dateMap.entries()].sort((a, b) => a[0].localeCompare(b[0]));
 
-      // Actual: remaining balance based on how far logged weight is from target
-      let actual = null;
-      if (actualMap.has(ds)) {
-        actual = Math.max(0, Math.round(
-          Math.abs(actualMap.get(ds) - targetWeight) * CALORIES_PER_POUND
-        ));
-      }
+  // Build raw data first
+  const rawData = sorted.map(([ds, date]) => {
+    const daysSinceStart = Math.max(0, (date - now) / (1000 * 60 * 60 * 24));
+    const planned = Math.max(0, Math.round(totalDeficit * (1 - daysSinceStart / days)));
 
-      return { label: fmtLabel(date), dateStr: ds, planned, actual };
-    });
+    let actual = null;
+    if (actualMap.has(ds)) {
+      actual = Math.max(0, Math.round(
+        Math.abs(actualMap.get(ds) - targetWeight) * CALORIES_PER_POUND
+      ));
+    }
+
+    return { label: fmtLabel(date), dateStr: ds, planned, actual };
+  });
+
+  // Compute dot colors for deficit balance (lower is better)
+  const actualPoints = rawData.filter((d) => d.actual != null);
+  let lowestBalance = Infinity;
+  let prevBalance = null;
+  for (const point of actualPoints) {
+    let color = '#60a5fa';
+    if (prevBalance !== null && point.actual > prevBalance) {
+      color = '#f87171'; // red - balance went up (bad)
+    } else if (point.actual < lowestBalance) {
+      color = '#34d399'; // green - new lowest balance
+    }
+    if (point.actual < lowestBalance) lowestBalance = point.actual;
+    prevBalance = point.actual;
+    point.dotColor = color;
+  }
+
+  // Merge colors back
+  const colorMap = new Map();
+  for (const p of actualPoints) colorMap.set(p.dateStr, p.dotColor);
+  for (const d of rawData) d.dotColor = colorMap.get(d.dateStr) || '#60a5fa';
+
+  return rawData;
+}
+
+// --- Custom dot renderer ---
+
+function ColoredDot({ cx, cy, payload }) {
+  if (cx == null || cy == null || payload?.actual == null) return null;
+  const color = payload.dotColor || '#60a5fa';
+  return (
+    <circle cx={cx} cy={cy} r={4} fill={color} stroke="#18181b" strokeWidth={2} />
+  );
 }
 
 // --- Tooltips ---
@@ -392,7 +445,7 @@ export default function Dashboard({ metrics, entries = [] }) {
                       dataKey="actual"
                       stroke="#60a5fa"
                       strokeWidth={2.5}
-                      dot={{ r: 4, fill: '#60a5fa', stroke: '#18181b', strokeWidth: 2 }}
+                      dot={<ColoredDot />}
                       activeDot={{ r: 5, fill: '#60a5fa', stroke: '#18181b', strokeWidth: 2 }}
                       connectNulls
                     />
@@ -610,7 +663,7 @@ export default function Dashboard({ metrics, entries = [] }) {
                       dataKey="actual"
                       stroke="#60a5fa"
                       strokeWidth={2.5}
-                      dot={{ r: 4, fill: '#60a5fa', stroke: '#18181b', strokeWidth: 2 }}
+                      dot={<ColoredDot />}
                       activeDot={{ r: 5, fill: '#60a5fa', stroke: '#18181b', strokeWidth: 2 }}
                       connectNulls
                     />
