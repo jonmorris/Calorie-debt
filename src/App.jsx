@@ -46,6 +46,10 @@ function saveJSON(key, value) {
   }
 }
 
+function todayStr() {
+  return new Date().toISOString().split('T')[0]
+}
+
 export default function App() {
   const [tab, setTab] = useState('dashboard')
   const [settings, setSettings] = useState(() => ({
@@ -66,6 +70,13 @@ export default function App() {
 
   const deleteEntry = (date) => {
     setEntries((prev) => prev.filter((e) => e.date !== date))
+  }
+
+  // When current weight changes in settings, also log it as today's entry
+  const handleCurrentWeightChange = (weight) => {
+    if (weight >= 50 && weight <= 700) {
+      addEntry({ date: todayStr(), weight })
+    }
   }
 
   const metrics = useMemo(() => calculateAll(settings), [settings])
@@ -95,7 +106,11 @@ export default function App() {
             <Track entries={entries} onAdd={addEntry} onDelete={deleteEntry} />
           )}
           {tab === 'settings' && (
-            <Settings settings={settings} onChange={setSettings} />
+            <Settings
+              settings={settings}
+              onChange={setSettings}
+              onCurrentWeightChange={handleCurrentWeightChange}
+            />
           )}
         </div>
       </main>

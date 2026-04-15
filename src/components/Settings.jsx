@@ -44,7 +44,7 @@ function NumberInput({ value, onChange, min, max, step = 1, unit, placeholder })
   );
 }
 
-export default function Settings({ settings, onChange }) {
+export default function Settings({ settings, onChange, onCurrentWeightChange }) {
   const update = (key, value) => {
     onChange({ ...settings, [key]: value });
   };
@@ -82,7 +82,10 @@ export default function Settings({ settings, onChange }) {
         <InputGroup icon={Scale} label="Current Weight">
           <NumberInput
             value={settings.currentWeight}
-            onChange={(v) => update('currentWeight', v)}
+            onChange={(v) => {
+              update('currentWeight', v);
+              if (onCurrentWeightChange) onCurrentWeightChange(v);
+            }}
             min={50}
             max={700}
             unit="lbs"
