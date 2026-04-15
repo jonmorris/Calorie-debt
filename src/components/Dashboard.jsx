@@ -114,24 +114,36 @@ function generateWeightChartData(currentWeight, targetWeight, lbsPerWeek, target
 
   const sorted = [...dateMap.entries()].sort((a, b) => a[0].localeCompare(b[0]));
 
-  // Compute dot colors based on weight trajectory
+  // Compute dot colors: one green (lowest), red (higher than prev), blue (default)
   const actualEntries = sorted
     .filter(([ds]) => actualMap.has(ds))
     .map(([ds]) => ({ date: ds, weight: actualMap.get(ds) }));
 
   const dotColors = new Map();
-  let lowestWeight = Infinity;
-  let prevWeight = null;
-  for (const entry of actualEntries) {
-    let color = '#60a5fa'; // blue default
-    if (prevWeight !== null && entry.weight > prevWeight) {
-      color = '#f87171'; // red - went up
-    } else if (entry.weight < lowestWeight) {
-      color = '#34d399'; // green - new low
+  if (actualEntries.length > 0) {
+    // Find the single lowest weight — last occurrence if tied
+    let lowestVal = Infinity;
+    let lowestDate = null;
+    for (const entry of actualEntries) {
+      if (entry.weight <= lowestVal) {
+        lowestVal = entry.weight;
+        lowestDate = entry.date;
+      }
     }
-    if (entry.weight < lowestWeight) lowestWeight = entry.weight;
-    prevWeight = entry.weight;
-    dotColors.set(entry.date, color);
+
+    // Assign colors
+    let prevWeight = null;
+    for (const entry of actualEntries) {
+      let color = '#60a5fa'; // blue default
+      if (prevWeight !== null && entry.weight > prevWeight) {
+        color = '#f87171'; // red - higher than previous
+      }
+      if (entry.date === lowestDate) {
+        color = '#34d399'; // green - the single lowest
+      }
+      prevWeight = entry.weight;
+      dotColors.set(entry.date, color);
+    }
   }
 
   return sorted.map(([ds, date]) => ({
@@ -179,20 +191,31 @@ function generateDeficitChartData(targetWeight, totalDeficit, days, targetDate, 
     return { label: fmtLabel(date), dateStr: ds, planned, actual };
   });
 
-  // Compute dot colors for deficit balance (lower is better)
+  // Compute dot colors: one green (lowest balance), red (higher than prev), blue (default)
   const actualPoints = rawData.filter((d) => d.actual != null);
-  let lowestBalance = Infinity;
-  let prevBalance = null;
-  for (const point of actualPoints) {
-    let color = '#60a5fa';
-    if (prevBalance !== null && point.actual > prevBalance) {
-      color = '#f87171'; // red - balance went up (bad)
-    } else if (point.actual < lowestBalance) {
-      color = '#34d399'; // green - new lowest balance
+  if (actualPoints.length > 0) {
+    // Find the single lowest balance — last occurrence if tied
+    let lowestVal = Infinity;
+    let lowestIdx = 0;
+    for (let i = 0; i < actualPoints.length; i++) {
+      if (actualPoints[i].actual <= lowestVal) {
+        lowestVal = actualPoints[i].actual;
+        lowestIdx = i;
+      }
     }
-    if (point.actual < lowestBalance) lowestBalance = point.actual;
-    prevBalance = point.actual;
-    point.dotColor = color;
+
+    let prevBalance = null;
+    for (let i = 0; i < actualPoints.length; i++) {
+      let color = '#60a5fa';
+      if (prevBalance !== null && actualPoints[i].actual > prevBalance) {
+        color = '#f87171';
+      }
+      if (i === lowestIdx) {
+        color = '#34d399';
+      }
+      prevBalance = actualPoints[i].actual;
+      actualPoints[i].dotColor = color;
+    }
   }
 
   // Merge colors back
