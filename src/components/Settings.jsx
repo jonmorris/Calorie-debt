@@ -194,7 +194,7 @@ export default function Settings({ settings, onChange, onCurrentWeightChange }) 
                 onChange={(v) => update('calorieBudget', v)}
                 min={800}
                 max={5000}
-                step={50}
+                step={1}
                 unit="cal/day"
               />
               <input
@@ -203,7 +203,7 @@ export default function Settings({ settings, onChange, onCurrentWeightChange }) 
                 onChange={(e) => update('calorieBudget', Number(e.target.value))}
                 min={1000}
                 max={3000}
-                step={50}
+                step={10}
                 className="w-full h-2 mt-1"
               />
               <div className="flex justify-between text-[10px] text-zinc-600 font-mono">

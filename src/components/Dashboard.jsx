@@ -146,13 +146,32 @@ function generateWeightChartData(currentWeight, targetWeight, lbsPerWeek, target
     }
   }
 
-  return sorted.map(([ds, date]) => ({
+  // Build base data
+  const data = sorted.map(([ds, date]) => ({
     label: fmtLabel(date),
     dateStr: ds,
     projected: Math.round(getProjected(date) * 10) / 10,
     actual: actualMap.has(ds) ? actualMap.get(ds) : null,
+    revised: null,
     dotColor: dotColors.get(ds) || '#60a5fa',
   }));
+
+  // Revised projection: from latest actual entry forward at same rate
+  if (actualEntries.length > 0) {
+    const latest = actualEntries[actualEntries.length - 1];
+    const latestDate = new Date(latest.date + 'T00:00:00');
+    for (const point of data) {
+      const pointDate = new Date(point.dateStr + 'T00:00:00');
+      if (pointDate >= latestDate) {
+        const daysSinceLast = (pointDate - latestDate) / (1000 * 60 * 60 * 24);
+        const w = latest.weight + (isLosing ? -1 : 1) * lbsPerDay * daysSinceLast;
+        const clamped = isLosing ? Math.max(targetWeight, w) : Math.min(targetWeight, w);
+        point.revised = Math.round(clamped * 10) / 10;
+      }
+    }
+  }
+
+  return data;
 }
 
 function generateDeficitChartData(targetWeight, totalDeficit, days, targetDate, isLosing, entries) {
@@ -188,7 +207,7 @@ function generateDeficitChartData(targetWeight, totalDeficit, days, targetDate, 
       ));
     }
 
-    return { label: fmtLabel(date), dateStr: ds, planned, actual };
+    return { label: fmtLabel(date), dateStr: ds, planned, actual, revised: null };
   });
 
   // Compute dot colors: one green (lowest balance), red (higher than prev), blue (default)
@@ -223,6 +242,20 @@ function generateDeficitChartData(targetWeight, totalDeficit, days, targetDate, 
   for (const p of actualPoints) colorMap.set(p.dateStr, p.dotColor);
   for (const d of rawData) d.dotColor = colorMap.get(d.dateStr) || '#60a5fa';
 
+  // Revised projection: from latest actual balance forward at same daily rate
+  const dailyDeficit = totalDeficit / days;
+  if (actualPoints.length > 0) {
+    const latest = actualPoints[actualPoints.length - 1];
+    const latestDate = new Date(latest.dateStr + 'T00:00:00');
+    for (const point of rawData) {
+      const pointDate = new Date(point.dateStr + 'T00:00:00');
+      if (pointDate >= latestDate) {
+        const daysSinceLast = (pointDate - latestDate) / (1000 * 60 * 60 * 24);
+        point.revised = Math.max(0, Math.round(latest.actual - dailyDeficit * daysSinceLast));
+      }
+    }
+  }
+
   return rawData;
 }
 
@@ -250,6 +283,9 @@ function WeightTooltip({ active, payload }) {
       {data?.actual != null && (
         <p className="text-xs font-semibold text-blue-400 font-mono">Actual: {data.actual} lbs</p>
       )}
+      {data?.revised != null && data?.actual == null && (
+        <p className="text-xs font-semibold text-amber-400 font-mono">Revised: {data.revised} lbs</p>
+      )}
     </div>
   );
 }
@@ -268,6 +304,11 @@ function DeficitTooltip({ active, payload }) {
       {data?.actual != null && (
         <p className="text-xs font-semibold text-blue-400 font-mono">
           Actual: {data.actual.toLocaleString()} cal remaining
+        </p>
+      )}
+      {data?.revised != null && data?.actual == null && (
+        <p className="text-xs font-semibold text-amber-400 font-mono">
+          Revised: {data.revised.toLocaleString()} cal remaining
         </p>
       )}
     </div>
@@ -412,10 +453,16 @@ export default function Dashboard({ metrics, entries = [] }) {
                   <span className="text-[10px] text-zinc-500">Plan</span>
                 </div>
                 {hasActualDeficit && (
-                  <div className="flex items-center gap-1.5">
-                    <div className="w-2 h-2 rounded-full bg-blue-400" />
-                    <span className="text-[10px] text-zinc-500">Actual</span>
-                  </div>
+                  <>
+                    <div className="flex items-center gap-1.5">
+                      <div className="w-2 h-2 rounded-full bg-blue-400" />
+                      <span className="text-[10px] text-zinc-500">Actual</span>
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      <div className="w-2 h-0.5 border-t border-dashed border-amber-400" style={{ width: 8 }} />
+                      <span className="text-[10px] text-zinc-500">Revised</span>
+                    </div>
+                  </>
                 )}
               </div>
             </div>
@@ -463,15 +510,27 @@ export default function Dashboard({ metrics, entries = [] }) {
                     activeDot={{ r: 3, fill: '#f87171', stroke: '#18181b', strokeWidth: 2 }}
                   />
                   {hasActualDeficit && (
-                    <Line
-                      type="monotone"
-                      dataKey="actual"
-                      stroke="#60a5fa"
-                      strokeWidth={2.5}
-                      dot={<ColoredDot />}
-                      activeDot={{ r: 5, fill: '#60a5fa', stroke: '#18181b', strokeWidth: 2 }}
-                      connectNulls
-                    />
+                    <>
+                      <Line
+                        type="monotone"
+                        dataKey="actual"
+                        stroke="#60a5fa"
+                        strokeWidth={2.5}
+                        dot={<ColoredDot />}
+                        activeDot={{ r: 5, fill: '#60a5fa', stroke: '#18181b', strokeWidth: 2 }}
+                        connectNulls
+                      />
+                      <Line
+                        type="monotone"
+                        dataKey="revised"
+                        stroke="#fbbf24"
+                        strokeWidth={1.5}
+                        strokeDasharray="6 4"
+                        dot={false}
+                        activeDot={{ r: 3, fill: '#fbbf24', stroke: '#18181b', strokeWidth: 2 }}
+                        connectNulls
+                      />
+                    </>
                   )}
                 </ComposedChart>
               </ResponsiveContainer>
@@ -609,7 +668,8 @@ export default function Dashboard({ metrics, entries = [] }) {
 
         const projectedVals = chartData.map((d) => d.projected);
         const actualVals = chartData.filter((d) => d.actual != null).map((d) => d.actual);
-        const allValues = [...projectedVals, ...actualVals, targetWeight];
+        const revisedVals = chartData.filter((d) => d.revised != null).map((d) => d.revised);
+        const allValues = [...projectedVals, ...actualVals, ...revisedVals, targetWeight];
         const minW = Math.floor(Math.min(...allValues) / 5) * 5 - 5;
         const maxW = Math.ceil(Math.max(...allValues) / 5) * 5 + 5;
 
@@ -625,18 +685,24 @@ export default function Dashboard({ metrics, entries = [] }) {
               <h3 className="text-xs font-semibold text-zinc-500 uppercase tracking-wider">
                 Projected Weight
               </h3>
-              {hasActual && (
-                <div className="flex items-center gap-3">
-                  <div className="flex items-center gap-1.5">
-                    <div className="w-2 h-2 rounded-full bg-emerald-400" />
-                    <span className="text-[10px] text-zinc-500">Plan</span>
-                  </div>
-                  <div className="flex items-center gap-1.5">
-                    <div className="w-2 h-2 rounded-full bg-blue-400" />
-                    <span className="text-[10px] text-zinc-500">Actual</span>
-                  </div>
+              <div className="flex items-center gap-3">
+                <div className="flex items-center gap-1.5">
+                  <div className="w-2 h-2 rounded-full bg-emerald-400" />
+                  <span className="text-[10px] text-zinc-500">Plan</span>
                 </div>
-              )}
+                {hasActual && (
+                  <>
+                    <div className="flex items-center gap-1.5">
+                      <div className="w-2 h-2 rounded-full bg-blue-400" />
+                      <span className="text-[10px] text-zinc-500">Actual</span>
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      <div className="w-2 h-0.5 border-t border-dashed border-amber-400" style={{ width: 8 }} />
+                      <span className="text-[10px] text-zinc-500">Revised</span>
+                    </div>
+                  </>
+                )}
+              </div>
             </div>
             <div className="h-56 -ml-2">
               <ResponsiveContainer width="100%" height="100%">
@@ -681,15 +747,27 @@ export default function Dashboard({ metrics, entries = [] }) {
                     activeDot={{ r: 4, fill: '#34d399', stroke: '#18181b', strokeWidth: 2 }}
                   />
                   {hasActual && (
-                    <Line
-                      type="monotone"
-                      dataKey="actual"
-                      stroke="#60a5fa"
-                      strokeWidth={2.5}
-                      dot={<ColoredDot />}
-                      activeDot={{ r: 5, fill: '#60a5fa', stroke: '#18181b', strokeWidth: 2 }}
-                      connectNulls
-                    />
+                    <>
+                      <Line
+                        type="monotone"
+                        dataKey="actual"
+                        stroke="#60a5fa"
+                        strokeWidth={2.5}
+                        dot={<ColoredDot />}
+                        activeDot={{ r: 5, fill: '#60a5fa', stroke: '#18181b', strokeWidth: 2 }}
+                        connectNulls
+                      />
+                      <Line
+                        type="monotone"
+                        dataKey="revised"
+                        stroke="#fbbf24"
+                        strokeWidth={1.5}
+                        strokeDasharray="6 4"
+                        dot={false}
+                        activeDot={{ r: 3, fill: '#fbbf24', stroke: '#18181b', strokeWidth: 2 }}
+                        connectNulls
+                      />
+                    </>
                   )}
                 </ComposedChart>
               </ResponsiveContainer>
