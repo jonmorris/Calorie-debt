@@ -89,6 +89,10 @@ function fmtLabel(d) {
   return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 }
 
+function fmtTick(ts) {
+  return new Date(ts).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+}
+
 function generateWeightChartData(currentWeight, targetWeight, lbsPerWeek, targetDate, isLosing, entries) {
   const now = new Date();
   now.setHours(0, 0, 0, 0);
@@ -156,6 +160,7 @@ function generateWeightChartData(currentWeight, targetWeight, lbsPerWeek, target
     const loss = currentWeight - proj;
     return {
       label: fmtLabel(date),
+      ts: date.getTime(),
       dateStr: ds,
       projected: proj,
       planHigh: Math.round((proj + loss * RANGE) * 10) / 10,
@@ -219,7 +224,7 @@ function generateDeficitChartData(targetWeight, totalDeficit, days, targetDate, 
 
     const progress = totalDeficit - planned;
     return {
-      label: fmtLabel(date), dateStr: ds, planned, actual, revised: null,
+      label: fmtLabel(date), ts: date.getTime(), dateStr: ds, planned, actual, revised: null,
       planHigh: Math.round(planned + progress * 0.08),
       planLow: Math.max(0, Math.round(planned - progress * 0.08)),
     };
@@ -566,12 +571,14 @@ export default function Dashboard({ metrics, entries = [] }) {
                   </defs>
                   <CartesianGrid strokeDasharray="3 3" stroke="#27272a" vertical={false} />
                   <XAxis
-                    dataKey="label"
+                    dataKey="ts"
+                    type="number"
+                    scale="time"
+                    domain={['dataMin', 'dataMax']}
+                    tickFormatter={fmtTick}
                     tick={{ fontSize: 10, fill: '#52525b' }}
                     tickLine={false}
                     axisLine={{ stroke: '#27272a' }}
-                    ticks={ticks}
-                    interval="preserveStartEnd"
                   />
                   <YAxis
                     domain={[0, maxVal]}
@@ -816,12 +823,14 @@ export default function Dashboard({ metrics, entries = [] }) {
                   </defs>
                   <CartesianGrid strokeDasharray="3 3" stroke="#27272a" vertical={false} />
                   <XAxis
-                    dataKey="label"
+                    dataKey="ts"
+                    type="number"
+                    scale="time"
+                    domain={['dataMin', 'dataMax']}
+                    tickFormatter={fmtTick}
                     tick={{ fontSize: 10, fill: '#52525b' }}
                     tickLine={false}
                     axisLine={{ stroke: '#27272a' }}
-                    ticks={ticks}
-                    interval="preserveStartEnd"
                   />
                   <YAxis
                     domain={[minW, maxW]}
@@ -948,7 +957,7 @@ export default function Dashboard({ metrics, entries = [] }) {
                     </linearGradient>
                   </defs>
                   <CartesianGrid strokeDasharray="3 3" stroke="#27272a" vertical={false} />
-                  <XAxis dataKey="label" tick={{ fontSize: 11, fill: '#52525b' }} tickLine={false} axisLine={{ stroke: '#27272a' }} />
+                  <XAxis dataKey="ts" type="number" scale="time" domain={['dataMin', 'dataMax']} tickFormatter={fmtTick} tick={{ fontSize: 11, fill: '#52525b' }} tickLine={false} axisLine={{ stroke: '#27272a' }} />
                   <YAxis domain={[0, maxVal]} tick={{ fontSize: 11, fill: '#52525b' }} tickLine={false} axisLine={false} width={52} tickFormatter={(v) => v >= 1000 ? `${Math.round(v / 1000)}k` : `${v}`} />
                   <Tooltip content={<DeficitTooltip />} />
                   <ReferenceLine y={0} stroke="#34d399" strokeDasharray="6 3" strokeOpacity={0.4} />
@@ -988,7 +997,7 @@ export default function Dashboard({ metrics, entries = [] }) {
                     </linearGradient>
                   </defs>
                   <CartesianGrid strokeDasharray="3 3" stroke="#27272a" vertical={false} />
-                  <XAxis dataKey="label" tick={{ fontSize: 11, fill: '#52525b' }} tickLine={false} axisLine={{ stroke: '#27272a' }} />
+                  <XAxis dataKey="ts" type="number" scale="time" domain={['dataMin', 'dataMax']} tickFormatter={fmtTick} tick={{ fontSize: 11, fill: '#52525b' }} tickLine={false} axisLine={{ stroke: '#27272a' }} />
                   <YAxis domain={[minW, maxW]} tick={{ fontSize: 11, fill: '#52525b' }} tickLine={false} axisLine={false} width={44} />
                   <Tooltip content={<WeightTooltip />} />
                   <ReferenceLine y={targetWeight} stroke="#f43f5e" strokeDasharray="6 3" strokeOpacity={0.5} />
