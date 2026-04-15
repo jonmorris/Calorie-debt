@@ -671,19 +671,6 @@ export default function Dashboard({ metrics, entries = [], onAddEntry, onDeleteE
                 ))}
               </div>
             </div>
-            <div className="flex items-center gap-2.5 flex-wrap mb-3">
-              <div className="flex items-center gap-1"><div className="w-3 h-0 border-t-2 border-rose-400" /><span className="text-[9px] text-zinc-500">Plan</span></div>
-              {hasActualDeficit && (
-                <>
-                  <div className="flex items-center gap-1">
-                    <div className="flex gap-0.5"><div className="w-1.5 h-1.5 rounded-full bg-emerald-400" /><div className="w-1.5 h-1.5 rounded-full bg-blue-400" /><div className="w-1.5 h-1.5 rounded-full bg-rose-400" /></div>
-                    <span className="text-[9px] text-zinc-500">Actual</span>
-                  </div>
-                  <div className="flex items-center gap-1"><div className="w-3 h-0 border-t border-dashed border-violet-400" /><span className="text-[9px] text-zinc-500">Trend</span></div>
-                  <div className="flex items-center gap-1"><div className="w-3 h-0 border-t border-dashed border-amber-400" /><span className="text-[9px] text-zinc-500">Revised</span></div>
-                </>
-              )}
-            </div>
             <div className="h-44 -ml-2">
               <ResponsiveContainer width="100%" height="100%">
                 <ComposedChart data={viewData} margin={{ top: 5, right: 10, bottom: 0, left: 0 }}>
@@ -766,9 +753,33 @@ export default function Dashboard({ metrics, entries = [], onAddEntry, onDeleteE
                 </ComposedChart>
               </ResponsiveContainer>
             </div>
+            <div className="flex items-center gap-2.5 flex-wrap mt-3 justify-center">
+              <div className="flex items-center gap-1"><div className="w-3 h-0 border-t-2 border-rose-400" /><span className="text-[9px] text-zinc-500">Plan</span></div>
+              {hasActualDeficit && (
+                <>
+                  <div className="flex items-center gap-1">
+                    <div className="flex gap-0.5"><div className="w-1.5 h-1.5 rounded-full bg-emerald-400" /><div className="w-1.5 h-1.5 rounded-full bg-blue-400" /><div className="w-1.5 h-1.5 rounded-full bg-rose-400" /></div>
+                    <span className="text-[9px] text-zinc-500">Actual</span>
+                  </div>
+                  <div className="flex items-center gap-1"><div className="w-3 h-0 border-t border-dashed border-violet-400" /><span className="text-[9px] text-zinc-500">Trend</span></div>
+                  <div className="flex items-center gap-1"><div className="w-3 h-0 border-t border-dashed border-amber-400" /><span className="text-[9px] text-zinc-500">Revised</span></div>
+                </>
+              )}
+            </div>
           </div>
         );
       })()}
+
+      {/* ── Log Weight Button ── */}
+      {onAddEntry && (
+        <button
+          onClick={() => setShowTrack(true)}
+          className="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-semibold py-3.5 rounded-2xl transition-colors flex items-center justify-center gap-2"
+        >
+          <Plus className="w-5 h-5" />
+          Log Weight
+        </button>
+      )}
 
       {/* ── Key Metrics ── */}
       <div className="grid grid-cols-2 gap-3">
@@ -901,21 +912,15 @@ export default function Dashboard({ metrics, entries = [], onAddEntry, onDeleteE
         </div>
       </div>
 
-      {/* ── Log Weight Button ── */}
-      {onAddEntry && (
-        <button
-          onClick={() => setShowTrack(true)}
-          className="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-semibold py-3.5 rounded-2xl transition-colors flex items-center justify-center gap-2"
-        >
-          <Plus className="w-5 h-5" />
-          Log Weight
-        </button>
-      )}
-
       {/* ── Tips ── */}
-      <div className="bg-zinc-900 rounded-2xl p-4 border border-zinc-800/60 flex items-start gap-3">
-        <Lightbulb className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
-        <p className="text-xs text-zinc-400 leading-relaxed">{TIPS[tipIndex]}</p>
+      <div className="bg-zinc-900 rounded-2xl p-5 border border-zinc-800/60 flex items-start gap-3.5">
+        <div className="w-8 h-8 rounded-full bg-amber-500/10 flex items-center justify-center shrink-0">
+          <Lightbulb className="w-4 h-4 text-amber-400" />
+        </div>
+        <div>
+          <div className="text-[11px] font-semibold text-amber-400/80 uppercase tracking-wider mb-1">Tip</div>
+          <p className="text-sm text-zinc-300 leading-relaxed">{TIPS[tipIndex]}</p>
+        </div>
       </div>
 
       {/* ── Monthly Milestones ── */}
