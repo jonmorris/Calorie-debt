@@ -122,7 +122,7 @@ function generateWeightChartData(currentWeight, targetWeight, lbsPerWeek, target
     }));
 }
 
-function generateDeficitChartData(currentWeight, totalDeficit, days, targetDate, isLosing, entries) {
+function generateDeficitChartData(targetWeight, totalDeficit, days, targetDate, isLosing, entries) {
   const now = new Date();
   now.setHours(0, 0, 0, 0);
   const end = new Date(targetDate + 'T00:00:00');
@@ -144,15 +144,16 @@ function generateDeficitChartData(currentWeight, totalDeficit, days, targetDate,
   return [...dateMap.entries()]
     .sort((a, b) => a[0].localeCompare(b[0]))
     .map(([ds, date]) => {
+      // Planned: remaining balance drops linearly from totalDeficit to 0
       const daysSinceStart = Math.max(0, (date - now) / (1000 * 60 * 60 * 24));
-      const planned = Math.min(totalDeficit, Math.round((daysSinceStart / days) * totalDeficit));
+      const planned = Math.max(0, Math.round(totalDeficit * (1 - daysSinceStart / days)));
 
+      // Actual: remaining balance based on how far logged weight is from target
       let actual = null;
       if (actualMap.has(ds)) {
-        const weightChange = isLosing
-          ? currentWeight - actualMap.get(ds)
-          : actualMap.get(ds) - currentWeight;
-        actual = Math.max(0, Math.round(weightChange * CALORIES_PER_POUND));
+        actual = Math.max(0, Math.round(
+          Math.abs(actualMap.get(ds) - targetWeight) * CALORIES_PER_POUND
+        ));
       }
 
       return { label: fmtLabel(date), dateStr: ds, planned, actual };
@@ -184,13 +185,13 @@ function DeficitTooltip({ active, payload }) {
     <div className="bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 shadow-xl">
       <p className="text-[11px] text-zinc-400 mb-1">{data?.label}</p>
       {data?.planned != null && (
-        <p className="text-xs font-semibold text-emerald-400 font-mono">
-          Plan: {data.planned.toLocaleString()} cal
+        <p className="text-xs font-semibold text-rose-400 font-mono">
+          Plan: {data.planned.toLocaleString()} cal remaining
         </p>
       )}
       {data?.actual != null && (
         <p className="text-xs font-semibold text-blue-400 font-mono">
-          Actual: {data.actual.toLocaleString()} cal
+          Actual: {data.actual.toLocaleString()} cal remaining
         </p>
       )}
     </div>
@@ -273,7 +274,7 @@ export default function Dashboard({ metrics, entries = [] }) {
 
   // Deficit progress chart data
   const deficitChartData = generateDeficitChartData(
-    currentWeight, totalDeficit, days, targetDate, isLosing, entries
+    targetWeight, totalDeficit, days, targetDate, isLosing, entries
   );
   const hasActualDeficit = deficitChartData.some((d) => d.actual != null);
 
@@ -327,28 +328,28 @@ export default function Dashboard({ metrics, entries = [] }) {
           <div className="bg-zinc-900 rounded-2xl p-5 border border-zinc-800/60">
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-xs font-semibold text-zinc-500 uppercase tracking-wider">
-                Deficit Progress
+                Remaining Balance
               </h3>
-              {hasActualDeficit && (
-                <div className="flex items-center gap-3">
-                  <div className="flex items-center gap-1.5">
-                    <div className="w-2 h-2 rounded-full bg-emerald-400" />
-                    <span className="text-[10px] text-zinc-500">Plan</span>
-                  </div>
+              <div className="flex items-center gap-3">
+                <div className="flex items-center gap-1.5">
+                  <div className="w-2 h-2 rounded-full bg-rose-400" />
+                  <span className="text-[10px] text-zinc-500">Plan</span>
+                </div>
+                {hasActualDeficit && (
                   <div className="flex items-center gap-1.5">
                     <div className="w-2 h-2 rounded-full bg-blue-400" />
                     <span className="text-[10px] text-zinc-500">Actual</span>
                   </div>
-                </div>
-              )}
+                )}
+              </div>
             </div>
             <div className="h-44 -ml-2">
               <ResponsiveContainer width="100%" height="100%">
                 <ComposedChart data={deficitChartData} margin={{ top: 5, right: 10, bottom: 0, left: 0 }}>
                   <defs>
-                    <linearGradient id="deficitGrad" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="0%" stopColor="#34d399" stopOpacity={0.2} />
-                      <stop offset="100%" stopColor="#34d399" stopOpacity={0} />
+                    <linearGradient id="deficitGrad" x1="0" y1="1" x2="0" y2="0">
+                      <stop offset="0%" stopColor="#f43f5e" stopOpacity={0} />
+                      <stop offset="100%" stopColor="#f43f5e" stopOpacity={0.15} />
                     </linearGradient>
                   </defs>
                   <CartesianGrid strokeDasharray="3 3" stroke="#27272a" vertical={false} />
@@ -369,14 +370,21 @@ export default function Dashboard({ metrics, entries = [] }) {
                     tickFormatter={(v) => v >= 1000 ? `${Math.round(v / 1000)}k` : `${v}`}
                   />
                   <Tooltip content={<DeficitTooltip />} />
+                  <ReferenceLine
+                    y={0}
+                    stroke="#34d399"
+                    strokeDasharray="6 3"
+                    strokeOpacity={0.4}
+                    label={{ value: 'Goal', position: 'right', fill: '#34d399', fontSize: 10 }}
+                  />
                   <Area
                     type="monotone"
                     dataKey="planned"
-                    stroke="#34d399"
+                    stroke="#f87171"
                     strokeWidth={2}
                     fill="url(#deficitGrad)"
                     dot={false}
-                    activeDot={{ r: 3, fill: '#34d399', stroke: '#18181b', strokeWidth: 2 }}
+                    activeDot={{ r: 3, fill: '#f87171', stroke: '#18181b', strokeWidth: 2 }}
                   />
                   {hasActualDeficit && (
                     <Line
