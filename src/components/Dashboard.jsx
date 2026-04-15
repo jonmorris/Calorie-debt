@@ -484,7 +484,7 @@ export default function Dashboard({ metrics, entries = [] }) {
         <div className="flex items-center justify-center gap-2 mb-3">
           <Flame className="w-5 h-5 text-rose-400" />
           <span className="text-xs font-semibold text-zinc-500 uppercase tracking-wider">
-            {hasProgress ? 'Remaining' : 'Total'} Deficit
+            {hasProgress ? 'Remaining' : 'Total'} Balance
           </span>
         </div>
         <div className="text-4xl sm:text-5xl font-extrabold text-rose-400 tracking-tight font-mono">
@@ -542,11 +542,14 @@ export default function Dashboard({ metrics, entries = [] }) {
                 <Maximize2 className="w-3 h-3 text-zinc-600" />
               </div>
               <div className="flex items-center gap-2.5 flex-wrap justify-end">
-                <div className="flex items-center gap-1"><div className="w-1.5 h-1.5 rounded-full bg-rose-400" /><span className="text-[9px] text-zinc-500">Plan</span></div>
+                <div className="flex items-center gap-1"><div className="w-3 h-0 border-t-2 border-rose-400" /><span className="text-[9px] text-zinc-500">Plan</span></div>
                 {hasActualDeficit && (
                   <>
-                    <div className="flex items-center gap-1"><div className="w-1.5 h-1.5 rounded-full bg-blue-400" /><span className="text-[9px] text-zinc-500">Actual</span></div>
-                    <div className="flex items-center gap-1"><div className="w-1.5 h-1.5 rounded-full bg-violet-400" /><span className="text-[9px] text-zinc-500">Trend</span></div>
+                    <div className="flex items-center gap-1">
+                      <div className="flex gap-0.5"><div className="w-1.5 h-1.5 rounded-full bg-emerald-400" /><div className="w-1.5 h-1.5 rounded-full bg-blue-400" /><div className="w-1.5 h-1.5 rounded-full bg-rose-400" /></div>
+                      <span className="text-[9px] text-zinc-500">Actual</span>
+                    </div>
+                    <div className="flex items-center gap-1"><div className="w-3 h-0 border-t border-dashed border-violet-400" /><span className="text-[9px] text-zinc-500">Trend</span></div>
                     <div className="flex items-center gap-1"><div className="w-3 h-0 border-t border-dashed border-amber-400" /><span className="text-[9px] text-zinc-500">Revised</span></div>
                   </>
                 )}
@@ -642,14 +645,14 @@ export default function Dashboard({ metrics, entries = [] }) {
           icon={Calendar}
           label="Goal Date"
           value={formattedDate}
-          subtext={`${days} days (${weeks} wk${weeks !== 1 ? 's' : ''})`}
+          subtext={`${lbsPerWeek.toFixed(1)} lbs/week`}
           accent="indigo"
         />
         <MetricCard
-          icon={Target}
-          label="Target Intake"
-          value={formatCal(targetIntake)}
-          subtext="eat this per day"
+          icon={Calendar}
+          label="Weeks to Goal"
+          value={`${weeks} wk${weeks !== 1 ? 's' : ''}`}
+          subtext={`${days} days remaining`}
           accent="emerald"
         />
       </div>
@@ -789,11 +792,14 @@ export default function Dashboard({ metrics, entries = [] }) {
                 <Maximize2 className="w-3 h-3 text-zinc-600" />
               </div>
               <div className="flex items-center gap-2.5 flex-wrap justify-end">
-                <div className="flex items-center gap-1"><div className="w-1.5 h-1.5 rounded-full bg-emerald-400" /><span className="text-[9px] text-zinc-500">Plan</span></div>
+                <div className="flex items-center gap-1"><div className="w-3 h-0 border-t-2 border-emerald-400" /><span className="text-[9px] text-zinc-500">Plan</span></div>
                 {hasActual && (
                   <>
-                    <div className="flex items-center gap-1"><div className="w-1.5 h-1.5 rounded-full bg-blue-400" /><span className="text-[9px] text-zinc-500">Actual</span></div>
-                    <div className="flex items-center gap-1"><div className="w-1.5 h-1.5 rounded-full bg-violet-400" /><span className="text-[9px] text-zinc-500">Trend</span></div>
+                    <div className="flex items-center gap-1">
+                      <div className="flex gap-0.5"><div className="w-1.5 h-1.5 rounded-full bg-emerald-400" /><div className="w-1.5 h-1.5 rounded-full bg-blue-400" /><div className="w-1.5 h-1.5 rounded-full bg-rose-400" /></div>
+                      <span className="text-[9px] text-zinc-500">Actual</span>
+                    </div>
+                    <div className="flex items-center gap-1"><div className="w-3 h-0 border-t border-dashed border-violet-400" /><span className="text-[9px] text-zinc-500">Trend</span></div>
                     <div className="flex items-center gap-1"><div className="w-3 h-0 border-t border-dashed border-amber-400" /><span className="text-[9px] text-zinc-500">Revised</span></div>
                   </>
                 )}
