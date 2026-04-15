@@ -589,8 +589,8 @@ export default function Dashboard({ metrics, entries = [] }) {
                     strokeOpacity={0.4}
                     label={{ value: 'Goal', position: 'right', fill: '#34d399', fontSize: 10 }}
                   />
-                  <Line type="monotone" dataKey="planHigh" stroke="#f87171" strokeWidth={0.5} strokeOpacity={0.3} dot={false} activeDot={false} />
-                  <Line type="monotone" dataKey="planLow" stroke="#f87171" strokeWidth={0.5} strokeOpacity={0.3} dot={false} activeDot={false} />
+                  <Line type="linear" dataKey="planHigh" stroke="#f87171" strokeWidth={0.5} strokeOpacity={0.3} dot={false} activeDot={false} />
+                  <Line type="linear" dataKey="planLow" stroke="#f87171" strokeWidth={0.5} strokeOpacity={0.3} dot={false} activeDot={false} />
                   <Area
                     type="monotone"
                     dataKey="planned"
@@ -838,8 +838,8 @@ export default function Dashboard({ metrics, entries = [] }) {
                     strokeOpacity={0.5}
                     label={{ value: `Goal: ${targetWeight}`, position: 'right', fill: '#f43f5e', fontSize: 10 }}
                   />
-                  <Line type="monotone" dataKey="planHigh" stroke="#34d399" strokeWidth={0.5} strokeOpacity={0.3} dot={false} activeDot={false} />
-                  <Line type="monotone" dataKey="planLow" stroke="#34d399" strokeWidth={0.5} strokeOpacity={0.3} dot={false} activeDot={false} />
+                  <Line type="linear" dataKey="planHigh" stroke="#34d399" strokeWidth={0.5} strokeOpacity={0.3} dot={false} activeDot={false} />
+                  <Line type="linear" dataKey="planLow" stroke="#34d399" strokeWidth={0.5} strokeOpacity={0.3} dot={false} activeDot={false} />
                   <Area
                     type="monotone"
                     dataKey="projected"
@@ -952,9 +952,9 @@ export default function Dashboard({ metrics, entries = [] }) {
                   <YAxis domain={[0, maxVal]} tick={{ fontSize: 11, fill: '#52525b' }} tickLine={false} axisLine={false} width={52} tickFormatter={(v) => v >= 1000 ? `${Math.round(v / 1000)}k` : `${v}`} />
                   <Tooltip content={<DeficitTooltip />} />
                   <ReferenceLine y={0} stroke="#34d399" strokeDasharray="6 3" strokeOpacity={0.4} />
-                  <Line type="monotone" dataKey="planHigh" stroke="#f87171" strokeWidth={0.5} strokeOpacity={0.3} dot={false} activeDot={false} />
-                  <Line type="monotone" dataKey="planLow" stroke="#f87171" strokeWidth={0.5} strokeOpacity={0.3} dot={false} activeDot={false} />
-                  <Area type="monotone" dataKey="planned" stroke="#f87171" strokeWidth={2} fill="url(#deficitGradFull)" dot={false} />
+                  <Line type="linear" dataKey="planHigh" stroke="#f87171" strokeWidth={0.5} strokeOpacity={0.3} dot={false} activeDot={false} />
+                  <Line type="linear" dataKey="planLow" stroke="#f87171" strokeWidth={0.5} strokeOpacity={0.3} dot={false} activeDot={false} />
+                  <Area type="linear" dataKey="planned" stroke="#f87171" strokeWidth={2} fill="url(#deficitGradFull)" dot={false} />
                   {hasActualDeficit && (
                     <>
                       <Line type="monotone" dataKey="actual" stroke="#60a5fa" strokeWidth={2.5} dot={<ColoredDot />} connectNulls />
@@ -992,9 +992,9 @@ export default function Dashboard({ metrics, entries = [] }) {
                   <YAxis domain={[minW, maxW]} tick={{ fontSize: 11, fill: '#52525b' }} tickLine={false} axisLine={false} width={44} />
                   <Tooltip content={<WeightTooltip />} />
                   <ReferenceLine y={targetWeight} stroke="#f43f5e" strokeDasharray="6 3" strokeOpacity={0.5} />
-                  <Line type="monotone" dataKey="planHigh" stroke="#34d399" strokeWidth={0.5} strokeOpacity={0.3} dot={false} activeDot={false} />
-                  <Line type="monotone" dataKey="planLow" stroke="#34d399" strokeWidth={0.5} strokeOpacity={0.3} dot={false} activeDot={false} />
-                  <Area type="monotone" dataKey="projected" stroke="#34d399" strokeWidth={2} fill="url(#weightGradFull)" dot={false} />
+                  <Line type="linear" dataKey="planHigh" stroke="#34d399" strokeWidth={0.5} strokeOpacity={0.3} dot={false} activeDot={false} />
+                  <Line type="linear" dataKey="planLow" stroke="#34d399" strokeWidth={0.5} strokeOpacity={0.3} dot={false} activeDot={false} />
+                  <Area type="linear" dataKey="projected" stroke="#34d399" strokeWidth={2} fill="url(#weightGradFull)" dot={false} />
                   {hasActual && (
                     <>
                       <Line type="monotone" dataKey="actual" stroke="#60a5fa" strokeWidth={2.5} dot={<ColoredDot />} connectNulls />
