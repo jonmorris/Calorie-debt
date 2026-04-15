@@ -21,10 +21,11 @@ const DEFAULT_SETTINGS = {
   heightInches: 10,
   age: 30,
   sex: 'male',
-  activityLevel: 'sedentary',
+  activityLevel: 'desk',
   planMode: 'lbsPerWeek',
   lbsPerWeek: 1.5,
   targetDate: getDefaultDate(),
+  calorieBudget: 1800,
   dailyStepGoal: 10000,
 }
 

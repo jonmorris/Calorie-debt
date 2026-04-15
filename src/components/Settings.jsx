@@ -4,9 +4,10 @@ import {
   Ruler,
   Calendar,
   User,
-  Activity,
+  Briefcase,
   Footprints,
   TrendingDown,
+  Utensils,
 } from 'lucide-react';
 
 function InputGroup({ icon: Icon, label, children }) {
@@ -44,72 +45,60 @@ function NumberInput({ value, onChange, min, max, step = 1, unit, placeholder })
   );
 }
 
+function ComputedValue({ label, children }) {
+  return (
+    <div className="bg-zinc-800/50 rounded-xl px-4 py-3">
+      <span className="text-xs text-zinc-500">{label}</span>
+      <div className="mt-0.5">{children}</div>
+    </div>
+  );
+}
+
 export default function Settings({ settings, onChange, onCurrentWeightChange }) {
   const update = (key, value) => {
     onChange({ ...settings, [key]: value });
   };
 
   const today = new Date().toISOString().split('T')[0];
-
-  // Compute the derived value for display
   const weightDiff = Math.abs(settings.currentWeight - settings.targetWeight);
 
+  // Derived values for display in each plan mode
   let computedDate = '';
+  let computedRate = 0;
+  let computedDeficit = 0;
+
   if (settings.planMode === 'lbsPerWeek' && settings.lbsPerWeek > 0 && weightDiff > 0) {
     const daysNeeded = Math.ceil((weightDiff / settings.lbsPerWeek) * 7);
     const d = new Date();
     d.setDate(d.getDate() + daysNeeded);
-    computedDate = d.toLocaleDateString('en-US', {
-      month: 'long',
-      day: 'numeric',
-      year: 'numeric',
-    });
+    computedDate = d.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
+    computedDeficit = (settings.lbsPerWeek * 3500) / 7;
   }
 
-  let computedRate = 0;
   if (settings.planMode === 'targetDate' && settings.targetDate) {
     const now = new Date();
     now.setHours(0, 0, 0, 0);
     const target = new Date(settings.targetDate + 'T00:00:00');
     const days = Math.max(1, Math.ceil((target - now) / (1000 * 60 * 60 * 24)));
     computedRate = weightDiff / (days / 7);
+    computedDeficit = (weightDiff * 3500) / days;
+  }
+
+  if (settings.planMode === 'calorieBudget') {
+    // We'd need TDEE to show the derived rate, but we can show a rough estimate
+    // The dashboard will show the exact numbers
   }
 
   return (
     <div className="space-y-4 pb-4">
-      {/* Weight */}
-      <div className="bg-zinc-900 rounded-2xl p-5 border border-zinc-800/60 space-y-4">
-        <InputGroup icon={Scale} label="Current Weight">
-          <NumberInput
-            value={settings.currentWeight}
-            onChange={(v) => {
-              update('currentWeight', v);
-              if (onCurrentWeightChange) onCurrentWeightChange(v);
-            }}
-            min={50}
-            max={700}
-            unit="lbs"
-          />
-        </InputGroup>
-
-        <InputGroup icon={Target} label="Target Weight">
-          <NumberInput
-            value={settings.targetWeight}
-            onChange={(v) => update('targetWeight', v)}
-            min={50}
-            max={700}
-            unit="lbs"
-          />
-        </InputGroup>
-      </div>
-
-      {/* Plan Mode */}
+      {/* ── Plan Mode ── */}
       <div className="bg-zinc-900 rounded-2xl p-5 border border-zinc-800/60 space-y-4">
         <InputGroup icon={TrendingDown} label="Plan By">
-          <div className="flex gap-2">
+          <div className="flex gap-1.5">
             {[
-              { id: 'lbsPerWeek', label: 'Weekly Rate' },
-              { id: 'targetDate', label: 'Target Date' },
+              { id: 'lbsPerWeek', label: 'Rate' },
+              { id: 'targetDate', label: 'Date' },
+              { id: 'calorieBudget', label: 'Calories' },
             ].map((mode) => (
               <button
                 key={mode.id}
@@ -126,9 +115,9 @@ export default function Settings({ settings, onChange, onCurrentWeightChange }) 
           </div>
         </InputGroup>
 
-        {settings.planMode === 'lbsPerWeek' ? (
+        {settings.planMode === 'lbsPerWeek' && (
           <>
-            <InputGroup icon={TrendingDown} label="Rate">
+            <InputGroup icon={TrendingDown} label="Weekly Rate">
               <NumberInput
                 value={settings.lbsPerWeek}
                 onChange={(v) => update('lbsPerWeek', v)}
@@ -154,15 +143,21 @@ export default function Settings({ settings, onChange, onCurrentWeightChange }) 
               </div>
             </InputGroup>
             {computedDate && (
-              <div className="bg-zinc-800/50 rounded-xl px-4 py-3">
-                <span className="text-xs text-zinc-500">Estimated goal date</span>
-                <p className="text-sm font-semibold text-white mt-0.5">
-                  {computedDate}
+              <ComputedValue label="Estimated goal date">
+                <p className="text-sm font-semibold text-white">{computedDate}</p>
+              </ComputedValue>
+            )}
+            {computedDeficit > 0 && (
+              <ComputedValue label="Daily deficit needed">
+                <p className="text-sm font-semibold text-white">
+                  {Math.round(computedDeficit).toLocaleString()} cal/day
                 </p>
-              </div>
+              </ComputedValue>
             )}
           </>
-        ) : (
+        )}
+
+        {settings.planMode === 'targetDate' && (
           <>
             <InputGroup icon={Calendar} label="Target Date">
               <input
@@ -174,25 +169,89 @@ export default function Settings({ settings, onChange, onCurrentWeightChange }) 
               />
             </InputGroup>
             {computedRate > 0 && (
-              <div className="bg-zinc-800/50 rounded-xl px-4 py-3">
-                <span className="text-xs text-zinc-500">Required rate</span>
-                <p className={`text-sm font-semibold mt-0.5 ${
-                  computedRate > 2 ? 'text-rose-400' : 'text-white'
-                }`}>
+              <ComputedValue label="Required rate">
+                <p className={`text-sm font-semibold ${computedRate > 2 ? 'text-rose-400' : 'text-white'}`}>
                   {computedRate.toFixed(1)} lbs/week
-                  {computedRate > 2 && (
-                    <span className="text-xs text-rose-400/70 ml-2">
-                      (aggressive)
-                    </span>
-                  )}
+                  {computedRate > 2 && <span className="text-xs text-rose-400/70 ml-2">(aggressive)</span>}
                 </p>
-              </div>
+              </ComputedValue>
             )}
+            {computedDeficit > 0 && (
+              <ComputedValue label="Daily deficit needed">
+                <p className="text-sm font-semibold text-white">
+                  {Math.round(computedDeficit).toLocaleString()} cal/day
+                </p>
+              </ComputedValue>
+            )}
+          </>
+        )}
+
+        {settings.planMode === 'calorieBudget' && (
+          <>
+            <InputGroup icon={Utensils} label="Daily Calorie Goal">
+              <NumberInput
+                value={settings.calorieBudget}
+                onChange={(v) => update('calorieBudget', v)}
+                min={800}
+                max={5000}
+                step={50}
+                unit="cal/day"
+              />
+              <input
+                type="range"
+                value={settings.calorieBudget}
+                onChange={(e) => update('calorieBudget', Number(e.target.value))}
+                min={1000}
+                max={3000}
+                step={50}
+                className="w-full h-2 mt-1"
+              />
+              <div className="flex justify-between text-[10px] text-zinc-600 font-mono">
+                <span>1,000</span>
+                <span>1,500</span>
+                <span>2,000</span>
+                <span>2,500</span>
+                <span>3,000</span>
+              </div>
+            </InputGroup>
+            <p className="text-[11px] text-zinc-600 leading-relaxed">
+              Your deficit is calculated from your maintenance calories minus this
+              goal. Check the dashboard to see your estimated rate and goal date.
+            </p>
           </>
         )}
       </div>
 
-      {/* Body Metrics */}
+      {/* ── Steps ── */}
+      <div className="bg-zinc-900 rounded-2xl p-5 border border-zinc-800/60 space-y-4">
+        <InputGroup icon={Footprints} label="Daily Step Goal">
+          <NumberInput
+            value={settings.dailyStepGoal}
+            onChange={(v) => update('dailyStepGoal', v)}
+            min={0}
+            max={50000}
+            step={500}
+            unit="steps"
+          />
+          <input
+            type="range"
+            value={settings.dailyStepGoal}
+            onChange={(e) => update('dailyStepGoal', Number(e.target.value))}
+            min={0}
+            max={30000}
+            step={500}
+            className="w-full h-2 mt-1"
+          />
+          <div className="flex justify-between text-[10px] text-zinc-600 font-mono">
+            <span>0</span>
+            <span>10k</span>
+            <span>20k</span>
+            <span>30k</span>
+          </div>
+        </InputGroup>
+      </div>
+
+      {/* ── Body Metrics ── */}
       <div className="bg-zinc-900 rounded-2xl p-5 border border-zinc-800/60 space-y-4">
         <InputGroup icon={Ruler} label="Height">
           <div className="flex gap-3">
@@ -245,56 +304,57 @@ export default function Settings({ settings, onChange, onCurrentWeightChange }) 
           </div>
         </InputGroup>
 
-        <InputGroup icon={Activity} label="Activity Level">
-          <select
-            value={settings.activityLevel}
-            onChange={(e) => update('activityLevel', e.target.value)}
-            className="w-full bg-zinc-800/80 border border-zinc-700/50 rounded-xl px-4 py-3 text-white text-sm font-medium focus:outline-none focus:ring-2 focus:ring-emerald-500/50 transition-all appearance-none cursor-pointer"
-          >
-            <option value="sedentary">Sedentary (little/no exercise)</option>
-            <option value="light">Light (exercise 1-3 days/week)</option>
-            <option value="moderate">Moderate (exercise 3-5 days/week)</option>
-            <option value="active">Active (exercise 6-7 days/week)</option>
-            <option value="veryActive">Very Active (physical job + exercise)</option>
-          </select>
-        </InputGroup>
-      </div>
-
-      {/* Steps */}
-      <div className="bg-zinc-900 rounded-2xl p-5 border border-zinc-800/60 space-y-4">
-        <InputGroup icon={Footprints} label="Daily Step Goal">
-          <NumberInput
-            value={settings.dailyStepGoal}
-            onChange={(v) => update('dailyStepGoal', v)}
-            min={0}
-            max={50000}
-            step={500}
-            unit="steps"
-          />
-          <input
-            type="range"
-            value={settings.dailyStepGoal}
-            onChange={(e) => update('dailyStepGoal', Number(e.target.value))}
-            min={0}
-            max={30000}
-            step={500}
-            className="w-full h-2 mt-1"
-          />
-          <div className="flex justify-between text-[10px] text-zinc-600 font-mono">
-            <span>0</span>
-            <span>10k</span>
-            <span>20k</span>
-            <span>30k</span>
+        <InputGroup icon={Briefcase} label="Daily Life">
+          <div className="flex gap-1.5">
+            {[
+              { id: 'desk', label: 'Desk Job' },
+              { id: 'onFeet', label: 'On My Feet' },
+              { id: 'physical', label: 'Physical Job' },
+            ].map((level) => (
+              <button
+                key={level.id}
+                onClick={() => update('activityLevel', level.id)}
+                className={`flex-1 py-3 rounded-xl text-xs font-semibold transition-all ${
+                  settings.activityLevel === level.id
+                    ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-900/30'
+                    : 'bg-zinc-800/80 text-zinc-400 hover:bg-zinc-700/80'
+                }`}
+              >
+                {level.label}
+              </button>
+            ))}
           </div>
+          <p className="text-[11px] text-zinc-600 leading-relaxed">
+            Your baseline daily activity — not including planned exercise or steps.
+          </p>
         </InputGroup>
       </div>
 
-      {/* Tip */}
-      <p className="text-[11px] text-zinc-600 text-center px-6 leading-relaxed">
-        Set activity level to <strong className="text-zinc-500">Sedentary</strong> if
-        you want to count daily steps as your primary exercise source. Steps
-        estimate additional calories burned above your base activity.
-      </p>
+      {/* ── Weight (onboarding, bottom) ── */}
+      <div className="bg-zinc-900 rounded-2xl p-5 border border-zinc-800/60 space-y-4">
+        <InputGroup icon={Scale} label="Starting Weight">
+          <NumberInput
+            value={settings.currentWeight}
+            onChange={(v) => {
+              update('currentWeight', v);
+              if (onCurrentWeightChange) onCurrentWeightChange(v);
+            }}
+            min={50}
+            max={700}
+            unit="lbs"
+          />
+        </InputGroup>
+
+        <InputGroup icon={Target} label="Target Weight">
+          <NumberInput
+            value={settings.targetWeight}
+            onChange={(v) => update('targetWeight', v)}
+            min={50}
+            max={700}
+            unit="lbs"
+          />
+        </InputGroup>
+      </div>
     </div>
   );
 }

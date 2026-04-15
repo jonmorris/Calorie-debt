@@ -1,11 +1,9 @@
 export const CALORIES_PER_POUND = 3500;
 
 const ACTIVITY_MULTIPLIERS = {
-  sedentary: 1.2,
-  light: 1.375,
-  moderate: 1.55,
-  active: 1.725,
-  veryActive: 1.9,
+  desk: 1.2,
+  onFeet: 1.375,
+  physical: 1.55,
 };
 
 // Mifflin-St Jeor equation for Basal Metabolic Rate
@@ -66,6 +64,7 @@ export function calculateAll(settings) {
     planMode,
     lbsPerWeek: settingLbsPerWeek,
     targetDate: settingTargetDate,
+    calorieBudget: settingCalorieBudget,
     dailyStepGoal,
   } = settings;
 
@@ -73,27 +72,42 @@ export function calculateAll(settings) {
   const isLosing = isLosingWeight(currentWeight, targetWeight);
   const weightDiff = Math.abs(currentWeight - targetWeight);
   const totalDeficit = calculateTotalDeficit(currentWeight, targetWeight);
+  const tdee = calculateTDEE(currentWeight, totalHeightInches, age, sex, activityLevel);
+  const exerciseCalories = caloriesFromSteps(dailyStepGoal, currentWeight);
 
-  // Determine effective target date and lbs/week based on plan mode
-  let days, lbsPerWeek, targetDate;
+  // Determine effective values based on plan mode
+  let days, lbsPerWeek, targetDate, dailyRequired, dietPortion, targetIntake;
+
   if (planMode === 'lbsPerWeek') {
     lbsPerWeek = Math.max(0.1, settingLbsPerWeek || 1.5);
     days = weightDiff > 0 ? Math.max(1, Math.ceil((weightDiff / lbsPerWeek) * 7)) : 1;
     const d = new Date();
     d.setDate(d.getDate() + days);
     targetDate = d.toISOString().split('T')[0];
+    dailyRequired = totalDeficit / days;
+    dietPortion = Math.max(0, dailyRequired - exerciseCalories);
+    targetIntake = isLosing ? tdee - dietPortion : tdee + dietPortion;
+  } else if (planMode === 'calorieBudget') {
+    const budget = Math.max(0, settingCalorieBudget || 1800);
+    targetIntake = budget;
+    dietPortion = Math.max(0, tdee - budget);
+    dailyRequired = dietPortion + exerciseCalories;
+    lbsPerWeek = dailyRequired > 0 ? (dailyRequired * 7) / CALORIES_PER_POUND : 0;
+    days = weightDiff > 0 && lbsPerWeek > 0
+      ? Math.max(1, Math.ceil((weightDiff / lbsPerWeek) * 7))
+      : 1;
+    const d = new Date();
+    d.setDate(d.getDate() + days);
+    targetDate = d.toISOString().split('T')[0];
   } else {
+    // targetDate mode
     targetDate = settingTargetDate;
     days = daysUntilTarget(settingTargetDate);
     lbsPerWeek = weightDiff / (days / 7);
+    dailyRequired = totalDeficit / days;
+    dietPortion = Math.max(0, dailyRequired - exerciseCalories);
+    targetIntake = isLosing ? tdee - dietPortion : tdee + dietPortion;
   }
-
-  const dailyRequired = totalDeficit / days;
-  const tdee = calculateTDEE(currentWeight, totalHeightInches, age, sex, activityLevel);
-  const bmr = calculateBMR(currentWeight, totalHeightInches, age, sex);
-  const exerciseCalories = caloriesFromSteps(dailyStepGoal, currentWeight);
-  const dietPortion = Math.max(0, dailyRequired - exerciseCalories);
-  const targetIntake = isLosing ? tdee - dietPortion : tdee + dietPortion;
 
   return {
     isLosing,
@@ -101,7 +115,7 @@ export function calculateAll(settings) {
     days,
     dailyRequired,
     tdee,
-    bmr,
+    bmr: calculateBMR(currentWeight, totalHeightInches, age, sex),
     exerciseCalories,
     dietDeficit: dietPortion,
     targetIntake,
