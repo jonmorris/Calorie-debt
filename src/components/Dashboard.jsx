@@ -920,6 +920,60 @@ export default function Dashboard({ metrics, entries = [], onAddEntry, onDeleteE
         </div>
       </div>
 
+      {/* ── Weekly Recap ── */}
+      {entries.length > 0 && (() => {
+        const now = new Date();
+        now.setHours(0, 0, 0, 0);
+        const weekAgo = new Date(now);
+        weekAgo.setDate(weekAgo.getDate() - 7);
+
+        const recentEntries = [...entries]
+          .filter((e) => new Date(e.date + 'T00:00:00') >= weekAgo)
+          .sort((a, b) => a.date.localeCompare(b.date));
+
+        if (recentEntries.length < 1) return null;
+
+        const oldest = recentEntries[0];
+        const newest = recentEntries[recentEntries.length - 1];
+        const avgWeight = recentEntries.reduce((s, e) => s + e.weight, 0) / recentEntries.length;
+        const weightChange = recentEntries.length >= 2 ? newest.weight - oldest.weight : 0;
+        const daysSpan = recentEntries.length >= 2
+          ? Math.max(1, (new Date(newest.date + 'T00:00:00') - new Date(oldest.date + 'T00:00:00')) / (1000 * 60 * 60 * 24))
+          : 7;
+        const weeklyRate = (weightChange / daysSpan) * 7;
+
+        return (
+          <div className="bg-zinc-900 rounded-2xl p-5 border border-zinc-800/60">
+            <h3 className="text-xs font-semibold text-zinc-500 uppercase tracking-wider mb-4">
+              Last 7 Days
+            </h3>
+            <div className="grid grid-cols-3 gap-3 text-center">
+              <div>
+                <div className="text-lg font-bold text-white font-mono">
+                  {avgWeight.toFixed(1)}
+                </div>
+                <div className="text-[10px] text-zinc-500 mt-0.5">Avg Weight</div>
+              </div>
+              <div>
+                <div className={`text-lg font-bold font-mono ${weightChange < 0 ? 'text-emerald-400' : weightChange > 0 ? 'text-rose-400' : 'text-zinc-300'}`}>
+                  {weightChange > 0 ? '+' : ''}{weightChange.toFixed(1)}
+                </div>
+                <div className="text-[10px] text-zinc-500 mt-0.5">lbs Change</div>
+              </div>
+              <div>
+                <div className={`text-lg font-bold font-mono ${weeklyRate < 0 ? 'text-emerald-400' : weeklyRate > 0 ? 'text-rose-400' : 'text-zinc-300'}`}>
+                  {Math.abs(weeklyRate).toFixed(1)}
+                </div>
+                <div className="text-[10px] text-zinc-500 mt-0.5">lbs/wk rate</div>
+              </div>
+            </div>
+            <div className="text-[10px] text-zinc-600 text-center mt-3">
+              Based on {recentEntries.length} weigh-in{recentEntries.length !== 1 ? 's' : ''} this week
+            </div>
+          </div>
+        );
+      })()}
+
       {/* ── Tips ── */}
       <div className="bg-zinc-900 rounded-2xl p-5 border border-zinc-800/60 flex items-start gap-3.5">
         <div className="w-8 h-8 rounded-full bg-amber-500/10 flex items-center justify-center shrink-0">

@@ -157,6 +157,46 @@ export default function Settings({ settings, onChange, onCurrentWeightChange, me
         );
       })()}
 
+      {/* ── Plan Summary ── */}
+      {metrics && (
+        <div className="bg-zinc-900 rounded-2xl p-5 border border-zinc-800/60">
+          <h3 className="text-xs font-semibold text-zinc-500 uppercase tracking-wider mb-3">
+            Plan Summary
+          </h3>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="bg-zinc-800/50 rounded-xl p-3">
+              <div className="text-[10px] text-zinc-500 mb-1">Daily Deficit</div>
+              <div className="text-sm font-bold text-white font-mono">
+                {Math.round(metrics.dailyRequired).toLocaleString()} cal
+              </div>
+            </div>
+            <div className="bg-zinc-800/50 rounded-xl p-3">
+              <div className="text-[10px] text-zinc-500 mb-1">Weekly Rate</div>
+              <div className={`text-sm font-bold font-mono ${metrics.lbsPerWeek > 2 ? 'text-rose-400' : 'text-white'}`}>
+                {metrics.lbsPerWeek.toFixed(1)} lbs/wk
+              </div>
+            </div>
+            <div className="bg-zinc-800/50 rounded-xl p-3">
+              <div className="text-[10px] text-zinc-500 mb-1">Goal Date</div>
+              <div className="text-sm font-bold text-white">
+                {new Date(metrics.targetDate + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+              </div>
+            </div>
+            <div className="bg-zinc-800/50 rounded-xl p-3">
+              <div className="text-[10px] text-zinc-500 mb-1">Target Intake</div>
+              <div className="text-sm font-bold text-emerald-400 font-mono">
+                {Math.round(metrics.targetIntake).toLocaleString()} cal
+              </div>
+            </div>
+          </div>
+          <div className="text-center mt-3">
+            <span className="text-[10px] text-zinc-600">
+              {metrics.days} days &middot; {metrics.weightDiff.toFixed(1)} lbs to go &middot; TDEE {Math.round(metrics.tdee).toLocaleString()} cal
+            </span>
+          </div>
+        </div>
+      )}
+
       {/* ── Plan Mode ── */}
       <div className="bg-zinc-900 rounded-2xl p-5 border border-zinc-800/60 space-y-4">
         <InputGroup icon={Target} label="Target Weight">
@@ -218,18 +258,6 @@ export default function Settings({ settings, onChange, onCurrentWeightChange, me
                 <span>3.0</span>
               </div>
             </InputGroup>
-            {computedDate && (
-              <ComputedValue label="Estimated goal date">
-                <p className="text-sm font-semibold text-white">{computedDate}</p>
-              </ComputedValue>
-            )}
-            {computedDeficit > 0 && (
-              <ComputedValue label="Daily deficit needed">
-                <p className="text-sm font-semibold text-white">
-                  {Math.round(computedDeficit).toLocaleString()} cal/day
-                </p>
-              </ComputedValue>
-            )}
           </>
         )}
 
@@ -244,21 +272,6 @@ export default function Settings({ settings, onChange, onCurrentWeightChange, me
                 className="w-full bg-zinc-800/80 border border-zinc-700/50 rounded-xl px-4 py-3 text-white text-sm font-medium focus:outline-none focus:ring-2 focus:ring-emerald-500/50 transition-all"
               />
             </InputGroup>
-            {computedRate > 0 && (
-              <ComputedValue label="Required rate">
-                <p className={`text-sm font-semibold ${computedRate > 2 ? 'text-rose-400' : 'text-white'}`}>
-                  {computedRate.toFixed(1)} lbs/week
-                  {computedRate > 2 && <span className="text-xs text-rose-400/70 ml-2">(aggressive)</span>}
-                </p>
-              </ComputedValue>
-            )}
-            {computedDeficit > 0 && (
-              <ComputedValue label="Daily deficit needed">
-                <p className="text-sm font-semibold text-white">
-                  {Math.round(computedDeficit).toLocaleString()} cal/day
-                </p>
-              </ComputedValue>
-            )}
           </>
         )}
 
@@ -290,26 +303,6 @@ export default function Settings({ settings, onChange, onCurrentWeightChange, me
                 <span>3,000</span>
               </div>
             </InputGroup>
-            {computedRate > 0 && (
-              <ComputedValue label="Estimated rate">
-                <p className={`text-sm font-semibold ${computedRate > 2 ? 'text-rose-400' : 'text-white'}`}>
-                  {computedRate.toFixed(1)} lbs/week
-                  {computedRate > 2 && <span className="text-xs text-rose-400/70 ml-2">(aggressive)</span>}
-                </p>
-              </ComputedValue>
-            )}
-            {computedDate && (
-              <ComputedValue label="Estimated goal date">
-                <p className="text-sm font-semibold text-white">{computedDate}</p>
-              </ComputedValue>
-            )}
-            {computedDeficit > 0 && (
-              <ComputedValue label="Daily deficit">
-                <p className="text-sm font-semibold text-white">
-                  {Math.round(computedDeficit).toLocaleString()} cal/day
-                </p>
-              </ComputedValue>
-            )}
           </>
         )}
       </div>
