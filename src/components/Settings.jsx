@@ -123,79 +123,108 @@ export default function Settings({ settings, onChange, onCurrentWeightChange, me
 
   return (
     <div className="space-y-4 pb-4">
-      {/* ── Monthly Milestones ── */}
+      {/* ── Plan Summary ── */}
       {metrics && (() => {
+        const d = metrics.days;
+        const wk = Math.round(d / 7);
+        const mo = Math.round(d / 30.4);
+        const yr = (d / 365.25).toFixed(1);
+        const timeParts = [];
+        if (parseFloat(yr) >= 1) timeParts.push(`${yr} yr`);
+        if (mo >= 1) timeParts.push(`${mo} mo`);
+        timeParts.push(`${wk} wk`);
+        timeParts.push(`${d} days`);
+
         const schedule = generateSchedule(
           metrics.currentWeight, metrics.targetWeight, metrics.lbsPerWeek,
           metrics.targetDate, metrics.isLosing
         );
-        if (schedule.length === 0) return null;
+
         return (
-          <div className="bg-zinc-900 rounded-2xl p-5 border border-zinc-800/60">
-            <h3 className="text-xs font-semibold text-zinc-500 uppercase tracking-wider mb-4">
-              Monthly Milestones
+          <div className="bg-zinc-900 rounded-2xl p-5 border border-zinc-800/60 space-y-4">
+            <h3 className="text-xs font-semibold text-zinc-500 uppercase tracking-wider">
+              Plan Summary
             </h3>
-            <div className="flex gap-2.5 overflow-x-auto pb-2 hide-scrollbar">
-              {schedule.map((month, i) => (
-                <div
-                  key={i}
-                  className={`flex-shrink-0 w-[72px] rounded-xl p-2.5 text-center transition-colors ${
-                    month.isTarget
-                      ? 'bg-emerald-950/60 border border-emerald-800/50'
-                      : 'bg-zinc-800/70'
-                  }`}
-                >
-                  <div className="text-[10px] font-medium text-zinc-500">{month.label}</div>
-                  <div className={`text-sm font-bold mt-1 font-mono ${month.isTarget ? 'text-emerald-400' : 'text-zinc-300'}`}>
-                    {month.weight}
-                  </div>
-                  <div className="text-[10px] text-zinc-600">lbs</div>
-                </div>
-              ))}
+
+            {/* Weight range */}
+            <div className="flex items-center justify-center gap-3 py-1">
+              <div className="text-center">
+                <div className="text-xl font-bold text-white font-mono">{metrics.currentWeight}</div>
+                <div className="text-[10px] text-zinc-500">Start</div>
+              </div>
+              <div className="text-zinc-600 text-lg">&rarr;</div>
+              <div className="text-center">
+                <div className="text-xl font-bold text-emerald-400 font-mono">{metrics.targetWeight}</div>
+                <div className="text-[10px] text-zinc-500">Goal</div>
+              </div>
+              <div className="text-center ml-2 pl-3 border-l border-zinc-800">
+                <div className="text-xl font-bold text-rose-400 font-mono">{metrics.weightDiff.toFixed(1)}</div>
+                <div className="text-[10px] text-zinc-500">lbs to go</div>
+              </div>
             </div>
+
+            {/* Key metrics */}
+            <div className="grid grid-cols-2 gap-2.5">
+              <div className="bg-zinc-800/50 rounded-xl p-3.5">
+                <div className="text-[11px] text-zinc-500 mb-1">Daily Deficit</div>
+                <div className="text-base font-bold text-white font-mono">
+                  {Math.round(metrics.dailyRequired).toLocaleString()} <span className="text-xs text-zinc-500">cal</span>
+                </div>
+              </div>
+              <div className="bg-zinc-800/50 rounded-xl p-3.5">
+                <div className="text-[11px] text-zinc-500 mb-1">Weekly Rate</div>
+                <div className={`text-base font-bold font-mono ${metrics.lbsPerWeek > 2 ? 'text-rose-400' : 'text-white'}`}>
+                  {metrics.lbsPerWeek.toFixed(1)} <span className="text-xs text-zinc-500">lbs/wk</span>
+                </div>
+              </div>
+              <div className="bg-zinc-800/50 rounded-xl p-3.5">
+                <div className="text-[11px] text-zinc-500 mb-1">Goal Date</div>
+                <div className="text-base font-bold text-white">
+                  {new Date(metrics.targetDate + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                </div>
+              </div>
+              <div className="bg-zinc-800/50 rounded-xl p-3.5">
+                <div className="text-[11px] text-zinc-500 mb-1">Target Intake</div>
+                <div className="text-base font-bold text-emerald-400 font-mono">
+                  {Math.round(metrics.targetIntake).toLocaleString()} <span className="text-xs text-zinc-500">cal</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Time estimate */}
+            <div className="text-center text-xs text-zinc-500">
+              {timeParts.join(' \u00b7 ')}
+            </div>
+
+            {/* Monthly milestones */}
+            {schedule.length > 0 && (
+              <div className="border-t border-zinc-800 pt-3">
+                <div className="text-[11px] font-semibold text-zinc-500 uppercase tracking-wider mb-3">
+                  Monthly Milestones
+                </div>
+                <div className="flex gap-2.5 overflow-x-auto pb-1 hide-scrollbar">
+                  {schedule.map((month, i) => (
+                    <div
+                      key={i}
+                      className={`flex-shrink-0 w-[72px] rounded-xl p-2.5 text-center transition-colors ${
+                        month.isTarget
+                          ? 'bg-emerald-950/60 border border-emerald-800/50'
+                          : 'bg-zinc-800/70'
+                      }`}
+                    >
+                      <div className="text-[10px] font-medium text-zinc-500">{month.label}</div>
+                      <div className={`text-sm font-bold mt-1 font-mono ${month.isTarget ? 'text-emerald-400' : 'text-zinc-300'}`}>
+                        {month.weight}
+                      </div>
+                      <div className="text-[10px] text-zinc-600">lbs</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         );
       })()}
-
-      {/* ── Plan Summary ── */}
-      {metrics && (
-        <div className="bg-zinc-900 rounded-2xl p-5 border border-zinc-800/60">
-          <h3 className="text-xs font-semibold text-zinc-500 uppercase tracking-wider mb-3">
-            Plan Summary
-          </h3>
-          <div className="grid grid-cols-2 gap-3">
-            <div className="bg-zinc-800/50 rounded-xl p-3">
-              <div className="text-[10px] text-zinc-500 mb-1">Daily Deficit</div>
-              <div className="text-sm font-bold text-white font-mono">
-                {Math.round(metrics.dailyRequired).toLocaleString()} cal
-              </div>
-            </div>
-            <div className="bg-zinc-800/50 rounded-xl p-3">
-              <div className="text-[10px] text-zinc-500 mb-1">Weekly Rate</div>
-              <div className={`text-sm font-bold font-mono ${metrics.lbsPerWeek > 2 ? 'text-rose-400' : 'text-white'}`}>
-                {metrics.lbsPerWeek.toFixed(1)} lbs/wk
-              </div>
-            </div>
-            <div className="bg-zinc-800/50 rounded-xl p-3">
-              <div className="text-[10px] text-zinc-500 mb-1">Goal Date</div>
-              <div className="text-sm font-bold text-white">
-                {new Date(metrics.targetDate + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
-              </div>
-            </div>
-            <div className="bg-zinc-800/50 rounded-xl p-3">
-              <div className="text-[10px] text-zinc-500 mb-1">Target Intake</div>
-              <div className="text-sm font-bold text-emerald-400 font-mono">
-                {Math.round(metrics.targetIntake).toLocaleString()} cal
-              </div>
-            </div>
-          </div>
-          <div className="text-center mt-3">
-            <span className="text-[10px] text-zinc-600">
-              {metrics.days} days &middot; {metrics.weightDiff.toFixed(1)} lbs to go &middot; TDEE {Math.round(metrics.tdee).toLocaleString()} cal
-            </span>
-          </div>
-        </div>
-      )}
 
       {/* ── Plan Mode ── */}
       <div className="bg-zinc-900 rounded-2xl p-5 border border-zinc-800/60 space-y-4">

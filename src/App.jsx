@@ -112,8 +112,8 @@ export default function App() {
       <header className="sticky top-0 z-20 bg-zinc-950/80 backdrop-blur-xl border-b border-zinc-800/40">
         <div className="max-w-lg mx-auto flex items-center justify-between px-4 py-3">
           <h1 className="text-lg font-bold tracking-tight">
-            <span className="text-white">Calorie</span>
-            <span className="text-emerald-400">Debt</span>
+            <span className="text-white">Burn</span>
+            <span className="text-emerald-400">Down</span>
           </h1>
           <div className="flex items-center gap-3">
             <button
@@ -217,7 +217,7 @@ export default function App() {
       {showChangelog && (
         <div className="fixed inset-0 z-50 bg-zinc-950 flex flex-col">
           <div className="flex items-center justify-between px-4 py-3 border-b border-zinc-800">
-            <h2 className="text-sm font-semibold text-white">CalorieDebt v0.1</h2>
+            <h2 className="text-sm font-semibold text-white">BurnDown v0.1</h2>
             <button onClick={() => setShowChangelog(false)} className="text-zinc-400 p-2 -mr-2">
               <X className="w-5 h-5" />
             </button>

@@ -597,8 +597,9 @@ export default function Dashboard({ metrics, entries = [], onAddEntry, onDeleteE
             {hasProgress ? 'Remaining' : 'Total'} Balance
           </span>
         </div>
-        <div className="text-4xl sm:text-5xl font-extrabold text-rose-400 tracking-tight font-mono">
-          {formatCal(hasProgress ? remainingDeficit : totalDeficit)}
+        <div className="text-4xl sm:text-5xl font-extrabold tracking-tight font-mono">
+          <span className="text-rose-400">{Math.round(hasProgress ? remainingDeficit : totalDeficit).toLocaleString()}</span>
+          <span className="text-xl text-zinc-600 font-semibold ml-1.5">cal</span>
         </div>
         {hasProgress ? (
           <>
