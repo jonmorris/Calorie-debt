@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react'
-import { LayoutDashboard, SlidersHorizontal, FileText, X } from 'lucide-react'
+import { LayoutDashboard, SlidersHorizontal, FileText, X, Settings2 } from 'lucide-react'
 import Dashboard from './components/Dashboard'
 import Settings from './components/Settings'
 import { calculateAll } from './utils/calculations'
@@ -26,6 +26,7 @@ const DEFAULT_SETTINGS = {
   targetDate: getDefaultDate(),
   calorieBudget: 1800,
   dailyStepGoal: 10000,
+  units: 'lbs',
 }
 
 function loadJSON(key, fallback) {
@@ -75,6 +76,7 @@ const ROADMAP = [
 export default function App() {
   const [tab, setTab] = useState('dashboard')
   const [showChangelog, setShowChangelog] = useState(false)
+  const [showAppSettings, setShowAppSettings] = useState(false)
   const [settings, setSettings] = useState(() => ({
     ...DEFAULT_SETTINGS,
     ...loadJSON(SETTINGS_KEY, {}),
@@ -113,13 +115,21 @@ export default function App() {
             <span className="text-white">Calorie</span>
             <span className="text-emerald-400">Debt</span>
           </h1>
-          <button
-            onClick={() => setShowChangelog(true)}
-            className="flex items-center gap-1.5 text-zinc-600 hover:text-zinc-400 transition-colors"
-          >
-            <FileText className="w-4 h-4" />
-            <span className="text-[11px] font-medium">v0.1</span>
-          </button>
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => setShowChangelog(true)}
+              className="flex items-center gap-1.5 text-zinc-600 hover:text-zinc-400 transition-colors"
+            >
+              <FileText className="w-4 h-4" />
+              <span className="text-[11px] font-medium">v0.1</span>
+            </button>
+            <button
+              onClick={() => setShowAppSettings(true)}
+              className="text-zinc-600 hover:text-zinc-400 transition-colors"
+            >
+              <Settings2 className="w-4 h-4" />
+            </button>
+          </div>
         </div>
       </header>
 
@@ -129,11 +139,12 @@ export default function App() {
           {tab === 'dashboard' && (
             <Dashboard metrics={metrics} entries={entries} onAddEntry={addEntry} onDeleteEntry={deleteEntry} />
           )}
-          {tab === 'settings' && (
+          {tab === 'planning' && (
             <Settings
               settings={settings}
               onChange={setSettings}
               onCurrentWeightChange={handleCurrentWeightChange}
+              metrics={metrics}
             />
           )}
         </div>
@@ -144,7 +155,7 @@ export default function App() {
         <div className="max-w-lg mx-auto flex" style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}>
           {[
             { id: 'dashboard', icon: LayoutDashboard, label: 'Dashboard' },
-            { id: 'settings', icon: SlidersHorizontal, label: 'Settings' },
+            { id: 'planning', icon: SlidersHorizontal, label: 'Planning' },
           ].map(({ id, icon: Icon, label }) => (
             <button
               key={id}
@@ -161,6 +172,46 @@ export default function App() {
           ))}
         </div>
       </nav>
+
+      {/* App Settings Modal */}
+      {showAppSettings && (
+        <div className="fixed inset-0 z-50 bg-zinc-950 flex flex-col">
+          <div className="flex items-center justify-between px-4 py-3 border-b border-zinc-800">
+            <h2 className="text-sm font-semibold text-white">Settings</h2>
+            <button onClick={() => setShowAppSettings(false)} className="text-zinc-400 p-2 -mr-2">
+              <X className="w-5 h-5" />
+            </button>
+          </div>
+          <div className="flex-1 overflow-y-auto px-4 py-4 space-y-4">
+            <div className="bg-zinc-900 rounded-2xl p-5 border border-zinc-800/60 space-y-4">
+              <div className="space-y-2">
+                <label className="flex items-center gap-2 text-xs font-semibold text-zinc-500 uppercase tracking-wider">
+                  Units
+                </label>
+                <div className="flex gap-2">
+                  {[
+                    { id: 'lbs', label: 'Pounds (lbs)' },
+                    { id: 'kg', label: 'Kilograms (kg)' },
+                  ].map((u) => (
+                    <button
+                      key={u.id}
+                      onClick={() => setSettings(s => ({ ...s, units: u.id }))}
+                      className={`flex-1 py-3 rounded-xl text-sm font-semibold transition-all ${
+                        settings.units === u.id
+                          ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-900/30'
+                          : 'bg-zinc-800/80 text-zinc-400 hover:bg-zinc-700/80'
+                      }`}
+                    >
+                      {u.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+            <p className="text-xs text-zinc-600 text-center">More settings coming soon.</p>
+          </div>
+        </div>
+      )}
 
       {/* Changelog / Roadmap Modal */}
       {showChangelog && (

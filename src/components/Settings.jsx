@@ -55,7 +55,27 @@ function ComputedValue({ label, children }) {
   );
 }
 
-export default function Settings({ settings, onChange, onCurrentWeightChange }) {
+function generateSchedule(currentWeight, targetWeight, lbsPerWeek, targetDate, isLosing) {
+  const schedule = [];
+  const now = new Date();
+  let weight = currentWeight;
+  const lbsPerMonth = lbsPerWeek * 4.345;
+  const cursor = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+  const end = new Date(targetDate + 'T00:00:00');
+  while (cursor <= end && schedule.length < 18) {
+    weight += isLosing ? -lbsPerMonth : lbsPerMonth;
+    const clamped = isLosing ? Math.max(targetWeight, weight) : Math.min(targetWeight, weight);
+    schedule.push({
+      label: cursor.toLocaleDateString('en-US', { month: 'short', year: '2-digit' }),
+      weight: Math.round(clamped * 10) / 10,
+      isTarget: Math.abs(clamped - targetWeight) < 0.5,
+    });
+    cursor.setMonth(cursor.getMonth() + 1);
+  }
+  return schedule;
+}
+
+export default function Settings({ settings, onChange, onCurrentWeightChange, metrics }) {
   const update = (key, value) => {
     onChange({ ...settings, [key]: value });
   };
@@ -103,6 +123,40 @@ export default function Settings({ settings, onChange, onCurrentWeightChange }) 
 
   return (
     <div className="space-y-4 pb-4">
+      {/* ── Monthly Milestones ── */}
+      {metrics && (() => {
+        const schedule = generateSchedule(
+          metrics.currentWeight, metrics.targetWeight, metrics.lbsPerWeek,
+          metrics.targetDate, metrics.isLosing
+        );
+        if (schedule.length === 0) return null;
+        return (
+          <div className="bg-zinc-900 rounded-2xl p-5 border border-zinc-800/60">
+            <h3 className="text-xs font-semibold text-zinc-500 uppercase tracking-wider mb-4">
+              Monthly Milestones
+            </h3>
+            <div className="flex gap-2.5 overflow-x-auto pb-2 hide-scrollbar">
+              {schedule.map((month, i) => (
+                <div
+                  key={i}
+                  className={`flex-shrink-0 w-[72px] rounded-xl p-2.5 text-center transition-colors ${
+                    month.isTarget
+                      ? 'bg-emerald-950/60 border border-emerald-800/50'
+                      : 'bg-zinc-800/70'
+                  }`}
+                >
+                  <div className="text-[10px] font-medium text-zinc-500">{month.label}</div>
+                  <div className={`text-sm font-bold mt-1 font-mono ${month.isTarget ? 'text-emerald-400' : 'text-zinc-300'}`}>
+                    {month.weight}
+                  </div>
+                  <div className="text-[10px] text-zinc-600">lbs</div>
+                </div>
+              ))}
+            </div>
+          </div>
+        );
+      })()}
+
       {/* ── Plan Mode ── */}
       <div className="bg-zinc-900 rounded-2xl p-5 border border-zinc-800/60 space-y-4">
         <InputGroup icon={Target} label="Target Weight">

@@ -772,13 +772,21 @@ export default function Dashboard({ metrics, entries = [], onAddEntry, onDeleteE
 
       {/* ── Log Weight Button ── */}
       {onAddEntry && (
-        <button
-          onClick={() => setShowTrack(true)}
-          className="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-semibold py-3.5 rounded-2xl transition-colors flex items-center justify-center gap-2"
-        >
-          <Plus className="w-5 h-5" />
-          Log Weight
-        </button>
+        <div className="space-y-2">
+          <button
+            onClick={() => setShowTrack(true)}
+            className="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-semibold py-3.5 rounded-2xl transition-colors flex items-center justify-center gap-2"
+          >
+            <Plus className="w-5 h-5" />
+            Log Weight
+          </button>
+          <button
+            onClick={() => setShowTrack(true)}
+            className="w-full text-zinc-500 hover:text-zinc-300 text-xs font-medium py-1 transition-colors"
+          >
+            View / Edit History
+          </button>
+        </div>
       )}
 
       {/* ── Key Metrics ── */}
@@ -922,33 +930,6 @@ export default function Dashboard({ metrics, entries = [], onAddEntry, onDeleteE
           <p className="text-sm text-zinc-300 leading-relaxed">{TIPS[tipIndex]}</p>
         </div>
       </div>
-
-      {/* ── Monthly Milestones ── */}
-      {schedule.length > 0 && (
-        <div className="bg-zinc-900 rounded-2xl p-5 border border-zinc-800/60">
-          <h3 className="text-xs font-semibold text-zinc-500 uppercase tracking-wider mb-4">
-            Monthly Milestones
-          </h3>
-          <div className="flex gap-2.5 overflow-x-auto pb-2 hide-scrollbar">
-            {schedule.map((month, i) => (
-              <div
-                key={i}
-                className={`flex-shrink-0 w-[72px] rounded-xl p-2.5 text-center transition-colors ${
-                  month.isTarget
-                    ? 'bg-emerald-950/60 border border-emerald-800/50'
-                    : 'bg-zinc-800/70'
-                }`}
-              >
-                <div className="text-[10px] font-medium text-zinc-500">{month.label}</div>
-                <div className={`text-sm font-bold mt-1 font-mono ${month.isTarget ? 'text-emerald-400' : 'text-zinc-300'}`}>
-                  {month.weight}
-                </div>
-                <div className="text-[10px] text-zinc-600">lbs</div>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
 
       {/* ── Warnings ── */}
       {hasWarnings && (
