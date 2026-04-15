@@ -12,6 +12,9 @@ import {
   PartyPopper,
   X,
   Maximize2,
+  Info,
+  Plus,
+  Lightbulb,
 } from 'lucide-react';
 import {
   ResponsiveContainer,
@@ -388,10 +391,112 @@ function DeficitTooltip({ active, payload }) {
   );
 }
 
+// --- Track Modal ---
+
+function TrackModal({ entries, onAdd, onDelete, onClose }) {
+  const today = new Date().toISOString().split('T')[0];
+  const [date, setDate] = useState(today);
+  const [weight, setWeight] = useState('');
+
+  const handleAdd = () => {
+    const w = parseFloat(weight);
+    if (!date || isNaN(w) || w <= 0) return;
+    onAdd({ date, weight: w });
+    setWeight('');
+  };
+
+  const sorted = [...entries].sort((a, b) => b.date.localeCompare(a.date));
+
+  return (
+    <div className="fixed inset-0 z-50 bg-zinc-950 flex flex-col">
+      <div className="flex items-center justify-between px-4 py-3 border-b border-zinc-800">
+        <h2 className="text-sm font-semibold text-white">Log Weight</h2>
+        <button onClick={onClose} className="text-zinc-400 p-2 -mr-2">
+          <X className="w-5 h-5" />
+        </button>
+      </div>
+      <div className="flex-1 overflow-y-auto px-4 py-4 space-y-4">
+        <div className="flex gap-3">
+          <input
+            type="date"
+            value={date}
+            onChange={(e) => setDate(e.target.value)}
+            max={today}
+            className="flex-1 bg-zinc-800/80 border border-zinc-700/50 rounded-xl px-3 py-3 text-white text-sm font-medium focus:outline-none focus:ring-2 focus:ring-emerald-500/50 min-w-0"
+          />
+          <div className="relative flex-1">
+            <input
+              type="number"
+              inputMode="decimal"
+              step="0.1"
+              value={weight}
+              onChange={(e) => setWeight(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && handleAdd()}
+              placeholder="Weight"
+              className="w-full bg-zinc-800/80 border border-zinc-700/50 rounded-xl px-3 py-3 text-white text-lg font-medium focus:outline-none focus:ring-2 focus:ring-emerald-500/50"
+            />
+            <span className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-500 text-sm pointer-events-none">lbs</span>
+          </div>
+        </div>
+        <button
+          onClick={handleAdd}
+          disabled={!weight || !date}
+          className="w-full bg-emerald-600 hover:bg-emerald-500 disabled:bg-zinc-700 disabled:text-zinc-500 text-white font-semibold py-3 rounded-xl transition-colors"
+        >
+          + Log Entry
+        </button>
+        {sorted.length > 0 && (
+          <div className="space-y-0.5 pt-2">
+            <h3 className="text-xs font-semibold text-zinc-500 uppercase tracking-wider mb-3">
+              History <span className="text-zinc-600">({sorted.length})</span>
+            </h3>
+            {sorted.map((entry) => (
+              <div key={entry.date} className="flex items-center justify-between py-2.5 border-b border-zinc-800/40 last:border-0">
+                <span className="text-sm text-zinc-400">
+                  {new Date(entry.date + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                </span>
+                <div className="flex items-center gap-4">
+                  <span className="text-sm font-bold text-white font-mono">{entry.weight} lbs</span>
+                  {onDelete && (
+                    <button onClick={() => onDelete(entry.date)} className="text-zinc-700 hover:text-rose-400 transition-colors p-1">
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// --- Tips ---
+
+const TIPS = [
+  'Drinking water before meals can reduce hunger and help you eat less.',
+  'Protein keeps you fuller longer — aim for 25-30g per meal.',
+  'Sleep 7-9 hours. Poor sleep increases hunger hormones.',
+  'A 10-minute walk after meals helps regulate blood sugar.',
+  'Track consistently, not perfectly. Trends matter more than single days.',
+  'Muscle burns more calories at rest. Strength training boosts your TDEE.',
+  'Eating slowly gives your brain time to register fullness (~20 min).',
+  'Fiber-rich foods (vegetables, beans, oats) increase satiety.',
+  'Weighing yourself at the same time daily reduces water weight noise.',
+  'A 500 cal/day deficit = ~1 lb/week. Small, consistent cuts add up.',
+  'Stress raises cortisol, which can increase appetite. Find ways to decompress.',
+  'Planning meals ahead removes decision fatigue and impulsive eating.',
+];
+
 // --- Main Component ---
 
-export default function Dashboard({ metrics, entries = [] }) {
+export default function Dashboard({ metrics, entries = [], onAddEntry, onDeleteEntry }) {
   const [expandedChart, setExpandedChart] = useState(null);
+  const [chartView, setChartView] = useState('full');
+  const [showTrack, setShowTrack] = useState(false);
+  const [showTdeeInfo, setShowTdeeInfo] = useState(false);
+  const [tipIndex] = useState(() => Math.floor(Math.random() * TIPS.length));
 
   if (!metrics) return null;
 
@@ -531,38 +636,57 @@ export default function Dashboard({ metrics, entries = [] }) {
 
       {/* ── Deficit Progress Chart ── */}
       {deficitChartData.length >= 2 && (() => {
-        const maxVal = totalDeficit;
-        const tickInterval = Math.max(1, Math.floor(deficitChartData.length / 6));
-        const ticks = deficitChartData
-          .filter((_, i) => i === 0 || i === deficitChartData.length - 1 || i % tickInterval === 0)
-          .map((d) => d.label);
+        const now = Date.now();
+        const monthMs = 30 * 24 * 60 * 60 * 1000;
+        const viewData = chartView === 'month'
+          ? deficitChartData.filter((d) => d.ts >= now - 3 * 24 * 60 * 60 * 1000 && d.ts <= now + monthMs)
+          : deficitChartData;
+        const maxVal = chartView === 'month'
+          ? Math.max(...viewData.map((d) => d.planned), ...viewData.filter((d) => d.actual != null).map((d) => d.actual))
+          : totalDeficit;
+        if (viewData.length < 2) return null;
 
         return (
-          <div className="bg-zinc-900 rounded-2xl p-5 border border-zinc-800/60 cursor-pointer" onClick={() => setExpandedChart('deficit')}>
-            <div className="flex items-center justify-between mb-4">
+          <div className="bg-zinc-900 rounded-2xl p-5 border border-zinc-800/60">
+            <div className="flex items-center justify-between mb-2">
               <div className="flex items-center gap-2">
                 <h3 className="text-xs font-semibold text-zinc-500 uppercase tracking-wider">
                   Remaining Balance
                 </h3>
-                <Maximize2 className="w-3 h-3 text-zinc-600" />
+                <button onClick={() => setExpandedChart('deficit')} className="text-zinc-600 hover:text-zinc-400">
+                  <Maximize2 className="w-3 h-3" />
+                </button>
               </div>
-              <div className="flex items-center gap-2.5 flex-wrap justify-end">
-                <div className="flex items-center gap-1"><div className="w-3 h-0 border-t-2 border-rose-400" /><span className="text-[9px] text-zinc-500">Plan</span></div>
-                {hasActualDeficit && (
-                  <>
-                    <div className="flex items-center gap-1">
-                      <div className="flex gap-0.5"><div className="w-1.5 h-1.5 rounded-full bg-emerald-400" /><div className="w-1.5 h-1.5 rounded-full bg-blue-400" /><div className="w-1.5 h-1.5 rounded-full bg-rose-400" /></div>
-                      <span className="text-[9px] text-zinc-500">Actual</span>
-                    </div>
-                    <div className="flex items-center gap-1"><div className="w-3 h-0 border-t border-dashed border-violet-400" /><span className="text-[9px] text-zinc-500">Trend</span></div>
-                    <div className="flex items-center gap-1"><div className="w-3 h-0 border-t border-dashed border-amber-400" /><span className="text-[9px] text-zinc-500">Revised</span></div>
-                  </>
-                )}
+              <div className="flex bg-zinc-800 rounded-lg p-0.5">
+                {[{ id: 'full', label: 'All' }, { id: 'month', label: '30d' }].map((v) => (
+                  <button
+                    key={v.id}
+                    onClick={(e) => { e.stopPropagation(); setChartView(v.id); }}
+                    className={`px-2.5 py-1 rounded-md text-[10px] font-semibold transition-colors ${
+                      chartView === v.id ? 'bg-zinc-700 text-white' : 'text-zinc-500'
+                    }`}
+                  >
+                    {v.label}
+                  </button>
+                ))}
               </div>
+            </div>
+            <div className="flex items-center gap-2.5 flex-wrap mb-3">
+              <div className="flex items-center gap-1"><div className="w-3 h-0 border-t-2 border-rose-400" /><span className="text-[9px] text-zinc-500">Plan</span></div>
+              {hasActualDeficit && (
+                <>
+                  <div className="flex items-center gap-1">
+                    <div className="flex gap-0.5"><div className="w-1.5 h-1.5 rounded-full bg-emerald-400" /><div className="w-1.5 h-1.5 rounded-full bg-blue-400" /><div className="w-1.5 h-1.5 rounded-full bg-rose-400" /></div>
+                    <span className="text-[9px] text-zinc-500">Actual</span>
+                  </div>
+                  <div className="flex items-center gap-1"><div className="w-3 h-0 border-t border-dashed border-violet-400" /><span className="text-[9px] text-zinc-500">Trend</span></div>
+                  <div className="flex items-center gap-1"><div className="w-3 h-0 border-t border-dashed border-amber-400" /><span className="text-[9px] text-zinc-500">Revised</span></div>
+                </>
+              )}
             </div>
             <div className="h-44 -ml-2">
               <ResponsiveContainer width="100%" height="100%">
-                <ComposedChart data={deficitChartData} margin={{ top: 5, right: 10, bottom: 0, left: 0 }}>
+                <ComposedChart data={viewData} margin={{ top: 5, right: 10, bottom: 0, left: 0 }}>
                   <defs>
                     <linearGradient id="deficitGrad" x1="0" y1="1" x2="0" y2="0">
                       <stop offset="0%" stopColor="#f43f5e" stopOpacity={0} />
@@ -596,8 +720,8 @@ export default function Dashboard({ metrics, entries = [] }) {
                     strokeOpacity={0.4}
                     label={{ value: 'Goal', position: 'right', fill: '#34d399', fontSize: 10 }}
                   />
-                  <Line type="linear" dataKey="planHigh" stroke="#f87171" strokeWidth={0.5} strokeOpacity={0.3} dot={false} activeDot={false} />
-                  <Line type="linear" dataKey="planLow" stroke="#f87171" strokeWidth={0.5} strokeOpacity={0.3} dot={false} activeDot={false} />
+                  <Line type="linear" dataKey="planHigh" stroke="#f87171" strokeWidth={1} strokeOpacity={0.5} strokeDasharray="4 4" dot={false} activeDot={false} />
+                  <Line type="linear" dataKey="planLow" stroke="#f87171" strokeWidth={1} strokeOpacity={0.5} strokeDasharray="4 4" dot={false} activeDot={false} />
                   <Area
                     type="monotone"
                     dataKey="planned"
@@ -760,142 +884,39 @@ export default function Dashboard({ metrics, entries = [] }) {
             <div className="flex items-center gap-2">
               <Activity className="w-3.5 h-3.5 text-zinc-600" />
               <span className="text-sm text-zinc-500">Maintenance (TDEE)</span>
+              <button onClick={() => setShowTdeeInfo(!showTdeeInfo)} className="text-zinc-600 hover:text-zinc-400">
+                <Info className="w-3.5 h-3.5" />
+              </button>
             </div>
             <span className="text-sm font-bold text-zinc-400 font-mono">{formatCal(tdee)}</span>
           </div>
+          {showTdeeInfo && (
+            <div className="bg-zinc-800/60 rounded-xl p-3 mt-2 text-xs text-zinc-400 leading-relaxed">
+              <strong className="text-zinc-300">Total Daily Energy Expenditure</strong> &mdash; the total
+              calories your body burns per day including base metabolism, digestion, and daily activity.
+              Eating below your TDEE creates a deficit that leads to weight loss. Estimated from your
+              height, weight, age, sex, and daily life activity.
+            </div>
+          )}
         </div>
       </div>
 
-      {/* ── Weight Over Time Chart ── */}
-      {(() => {
-        const chartData = addTrendLine(generateWeightChartData(
-          currentWeight, targetWeight, lbsPerWeek, targetDate, isLosing, entries
-        ));
-        if (chartData.length < 2) return null;
+      {/* ── Log Weight Button ── */}
+      {onAddEntry && (
+        <button
+          onClick={() => setShowTrack(true)}
+          className="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-semibold py-3.5 rounded-2xl transition-colors flex items-center justify-center gap-2"
+        >
+          <Plus className="w-5 h-5" />
+          Log Weight
+        </button>
+      )}
 
-        const projectedVals = chartData.map((d) => d.projected);
-        const actualVals = chartData.filter((d) => d.actual != null).map((d) => d.actual);
-        const revisedVals = chartData.filter((d) => d.revised != null).map((d) => d.revised);
-        const trendVals = chartData.filter((d) => d.trend != null).map((d) => d.trend);
-        const highVals = chartData.map((d) => d.planHigh);
-        const lowVals = chartData.map((d) => d.planLow);
-        const allValues = [...projectedVals, ...actualVals, ...revisedVals, ...trendVals, ...highVals, ...lowVals, targetWeight];
-        const minW = Math.floor(Math.min(...allValues) / 5) * 5 - 5;
-        const maxW = Math.ceil(Math.max(...allValues) / 5) * 5 + 5;
-
-        const tickInterval = Math.max(1, Math.floor(chartData.length / 6));
-        const ticks = chartData
-          .filter((_, i) => i === 0 || i === chartData.length - 1 || i % tickInterval === 0)
-          .map((d) => d.label);
-        const hasActual = actualVals.length > 0;
-
-        return (
-          <div className="bg-zinc-900 rounded-2xl p-5 border border-zinc-800/60 cursor-pointer" onClick={() => setExpandedChart('weight')}>
-            <div className="flex items-center justify-between mb-4">
-              <div className="flex items-center gap-2">
-                <h3 className="text-xs font-semibold text-zinc-500 uppercase tracking-wider">
-                  Projected Weight
-                </h3>
-                <Maximize2 className="w-3 h-3 text-zinc-600" />
-              </div>
-              <div className="flex items-center gap-2.5 flex-wrap justify-end">
-                <div className="flex items-center gap-1"><div className="w-3 h-0 border-t-2 border-emerald-400" /><span className="text-[9px] text-zinc-500">Plan</span></div>
-                {hasActual && (
-                  <>
-                    <div className="flex items-center gap-1">
-                      <div className="flex gap-0.5"><div className="w-1.5 h-1.5 rounded-full bg-emerald-400" /><div className="w-1.5 h-1.5 rounded-full bg-blue-400" /><div className="w-1.5 h-1.5 rounded-full bg-rose-400" /></div>
-                      <span className="text-[9px] text-zinc-500">Actual</span>
-                    </div>
-                    <div className="flex items-center gap-1"><div className="w-3 h-0 border-t border-dashed border-violet-400" /><span className="text-[9px] text-zinc-500">Trend</span></div>
-                    <div className="flex items-center gap-1"><div className="w-3 h-0 border-t border-dashed border-amber-400" /><span className="text-[9px] text-zinc-500">Revised</span></div>
-                  </>
-                )}
-              </div>
-            </div>
-            <div className="h-56 -ml-2">
-              <ResponsiveContainer width="100%" height="100%">
-                <ComposedChart data={chartData} margin={{ top: 5, right: 10, bottom: 0, left: 0 }}>
-                  <defs>
-                    <linearGradient id="weightGradient" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="0%" stopColor="#34d399" stopOpacity={0.25} />
-                      <stop offset="100%" stopColor="#34d399" stopOpacity={0} />
-                    </linearGradient>
-                  </defs>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#27272a" vertical={false} />
-                  <XAxis
-                    dataKey="ts"
-                    type="number"
-                    scale="time"
-                    domain={['dataMin', 'dataMax']}
-                    tickFormatter={fmtTick}
-                    tick={{ fontSize: 10, fill: '#52525b' }}
-                    tickLine={false}
-                    axisLine={{ stroke: '#27272a' }}
-                  />
-                  <YAxis
-                    domain={[minW, maxW]}
-                    tick={{ fontSize: 10, fill: '#52525b' }}
-                    tickLine={false}
-                    axisLine={false}
-                    width={40}
-                  />
-                  <Tooltip content={<WeightTooltip />} />
-                  <ReferenceLine
-                    y={targetWeight}
-                    stroke="#f43f5e"
-                    strokeDasharray="6 3"
-                    strokeOpacity={0.5}
-                    label={{ value: `Goal: ${targetWeight}`, position: 'right', fill: '#f43f5e', fontSize: 10 }}
-                  />
-                  <Line type="linear" dataKey="planHigh" stroke="#34d399" strokeWidth={0.5} strokeOpacity={0.3} dot={false} activeDot={false} />
-                  <Line type="linear" dataKey="planLow" stroke="#34d399" strokeWidth={0.5} strokeOpacity={0.3} dot={false} activeDot={false} />
-                  <Area
-                    type="monotone"
-                    dataKey="projected"
-                    stroke="#34d399"
-                    strokeWidth={2}
-                    fill="url(#weightGradient)"
-                    dot={false}
-                    activeDot={{ r: 4, fill: '#34d399', stroke: '#18181b', strokeWidth: 2 }}
-                  />
-                  {hasActual && (
-                    <>
-                      <Line
-                        type="monotone"
-                        dataKey="actual"
-                        stroke="#60a5fa"
-                        strokeWidth={2.5}
-                        dot={<ColoredDot />}
-                        activeDot={{ r: 5, fill: '#60a5fa', stroke: '#18181b', strokeWidth: 2 }}
-                        connectNulls
-                      />
-                      <Line
-                        type="monotone"
-                        dataKey="revised"
-                        stroke="#fbbf24"
-                        strokeWidth={1.5}
-                        strokeDasharray="6 4"
-                        dot={false}
-                        activeDot={{ r: 3, fill: '#fbbf24', stroke: '#18181b', strokeWidth: 2 }}
-                        connectNulls
-                      />
-                      <Line
-                        type="monotone"
-                        dataKey="trend"
-                        stroke="#a78bfa"
-                        strokeWidth={1.5}
-                        strokeDasharray="3 3"
-                        dot={false}
-                        connectNulls
-                      />
-                    </>
-                  )}
-                </ComposedChart>
-              </ResponsiveContainer>
-            </div>
-          </div>
-        );
-      })()}
+      {/* ── Tips ── */}
+      <div className="bg-zinc-900 rounded-2xl p-4 border border-zinc-800/60 flex items-start gap-3">
+        <Lightbulb className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
+        <p className="text-xs text-zinc-400 leading-relaxed">{TIPS[tipIndex]}</p>
+      </div>
 
       {/* ── Monthly Milestones ── */}
       {schedule.length > 0 && (
@@ -942,6 +963,16 @@ export default function Dashboard({ metrics, entries = [] }) {
         </div>
       )}
 
+      {/* ── Track Modal ── */}
+      {showTrack && onAddEntry && (
+        <TrackModal
+          entries={entries}
+          onAdd={(e) => { onAddEntry(e); }}
+          onDelete={onDeleteEntry}
+          onClose={() => setShowTrack(false)}
+        />
+      )}
+
       {/* ── Full-screen chart modals ── */}
       {expandedChart === 'deficit' && deficitChartData.length >= 2 && (() => {
         const maxVal = totalDeficit;
@@ -961,8 +992,8 @@ export default function Dashboard({ metrics, entries = [] }) {
                   <YAxis domain={[0, maxVal]} tick={{ fontSize: 11, fill: '#52525b' }} tickLine={false} axisLine={false} width={52} tickFormatter={(v) => v >= 1000 ? `${Math.round(v / 1000)}k` : `${v}`} />
                   <Tooltip content={<DeficitTooltip />} />
                   <ReferenceLine y={0} stroke="#34d399" strokeDasharray="6 3" strokeOpacity={0.4} />
-                  <Line type="linear" dataKey="planHigh" stroke="#f87171" strokeWidth={0.5} strokeOpacity={0.3} dot={false} activeDot={false} />
-                  <Line type="linear" dataKey="planLow" stroke="#f87171" strokeWidth={0.5} strokeOpacity={0.3} dot={false} activeDot={false} />
+                  <Line type="linear" dataKey="planHigh" stroke="#f87171" strokeWidth={1} strokeOpacity={0.5} strokeDasharray="4 4" dot={false} activeDot={false} />
+                  <Line type="linear" dataKey="planLow" stroke="#f87171" strokeWidth={1} strokeOpacity={0.5} strokeDasharray="4 4" dot={false} activeDot={false} />
                   <Area type="linear" dataKey="planned" stroke="#f87171" strokeWidth={2} fill="url(#deficitGradFull)" dot={false} />
                   {hasActualDeficit && (
                     <>
@@ -978,45 +1009,6 @@ export default function Dashboard({ metrics, entries = [] }) {
         );
       })()}
 
-      {expandedChart === 'weight' && (() => {
-        const chartData = addTrendLine(generateWeightChartData(currentWeight, targetWeight, lbsPerWeek, targetDate, isLosing, entries));
-        if (chartData.length < 2) return null;
-        const allVals = [...chartData.map(d => d.projected), ...chartData.filter(d => d.actual != null).map(d => d.actual), ...chartData.filter(d => d.revised != null).map(d => d.revised), ...chartData.filter(d => d.trend != null).map(d => d.trend), targetWeight];
-        const minW = Math.floor(Math.min(...allVals) / 5) * 5 - 5;
-        const maxW = Math.ceil(Math.max(...allVals) / 5) * 5 + 5;
-        const hasActual = chartData.some(d => d.actual != null);
-        return (
-          <ChartModal title="Projected Weight" onClose={() => setExpandedChart(null)}>
-            <div className="h-full">
-              <ResponsiveContainer width="100%" height="100%">
-                <ComposedChart data={chartData} margin={{ top: 10, right: 15, bottom: 20, left: 5 }}>
-                  <defs>
-                    <linearGradient id="weightGradFull" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="0%" stopColor="#34d399" stopOpacity={0.25} />
-                      <stop offset="100%" stopColor="#34d399" stopOpacity={0} />
-                    </linearGradient>
-                  </defs>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#27272a" vertical={false} />
-                  <XAxis dataKey="ts" type="number" scale="time" domain={['dataMin', 'dataMax']} tickFormatter={fmtTick} tick={{ fontSize: 11, fill: '#52525b' }} tickLine={false} axisLine={{ stroke: '#27272a' }} />
-                  <YAxis domain={[minW, maxW]} tick={{ fontSize: 11, fill: '#52525b' }} tickLine={false} axisLine={false} width={44} />
-                  <Tooltip content={<WeightTooltip />} />
-                  <ReferenceLine y={targetWeight} stroke="#f43f5e" strokeDasharray="6 3" strokeOpacity={0.5} />
-                  <Line type="linear" dataKey="planHigh" stroke="#34d399" strokeWidth={0.5} strokeOpacity={0.3} dot={false} activeDot={false} />
-                  <Line type="linear" dataKey="planLow" stroke="#34d399" strokeWidth={0.5} strokeOpacity={0.3} dot={false} activeDot={false} />
-                  <Area type="linear" dataKey="projected" stroke="#34d399" strokeWidth={2} fill="url(#weightGradFull)" dot={false} />
-                  {hasActual && (
-                    <>
-                      <Line type="monotone" dataKey="actual" stroke="#60a5fa" strokeWidth={2.5} dot={<ColoredDot />} connectNulls />
-                      <Line type="monotone" dataKey="revised" stroke="#fbbf24" strokeWidth={1.5} strokeDasharray="6 4" dot={false} connectNulls />
-                      <Line type="monotone" dataKey="trend" stroke="#a78bfa" strokeWidth={1.5} strokeDasharray="3 3" dot={false} connectNulls />
-                    </>
-                  )}
-                </ComposedChart>
-              </ResponsiveContainer>
-            </div>
-          </ChartModal>
-        );
-      })()}
     </div>
   );
 }

@@ -1,7 +1,6 @@
 import { useState, useEffect, useMemo } from 'react'
-import { LayoutDashboard, PenLine, SlidersHorizontal, FileText, X } from 'lucide-react'
+import { LayoutDashboard, SlidersHorizontal, FileText, X } from 'lucide-react'
 import Dashboard from './components/Dashboard'
-import Track from './components/Track'
 import Settings from './components/Settings'
 import { calculateAll } from './utils/calculations'
 
@@ -128,10 +127,7 @@ export default function App() {
       <main className="flex-1 px-4 py-4 overflow-y-auto">
         <div className="max-w-lg mx-auto">
           {tab === 'dashboard' && (
-            <Dashboard metrics={metrics} entries={entries} />
-          )}
-          {tab === 'track' && (
-            <Track entries={entries} onAdd={addEntry} onDelete={deleteEntry} />
+            <Dashboard metrics={metrics} entries={entries} onAddEntry={addEntry} onDeleteEntry={deleteEntry} />
           )}
           {tab === 'settings' && (
             <Settings
@@ -148,7 +144,6 @@ export default function App() {
         <div className="max-w-lg mx-auto flex" style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}>
           {[
             { id: 'dashboard', icon: LayoutDashboard, label: 'Dashboard' },
-            { id: 'track', icon: PenLine, label: 'Track' },
             { id: 'settings', icon: SlidersHorizontal, label: 'Settings' },
           ].map(({ id, icon: Icon, label }) => (
             <button
