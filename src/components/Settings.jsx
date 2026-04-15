@@ -9,6 +9,7 @@ import {
   TrendingDown,
   Utensils,
 } from 'lucide-react';
+import { calculateTDEE, caloriesFromSteps, CALORIES_PER_POUND } from '../utils/calculations';
 
 function InputGroup({ icon: Icon, label, children }) {
   return (
@@ -84,15 +85,36 @@ export default function Settings({ settings, onChange, onCurrentWeightChange }) 
     computedDeficit = (weightDiff * 3500) / days;
   }
 
-  if (settings.planMode === 'calorieBudget') {
-    // We'd need TDEE to show the derived rate, but we can show a rough estimate
-    // The dashboard will show the exact numbers
+  if (settings.planMode === 'calorieBudget' && settings.calorieBudget > 0) {
+    const totalHeight = settings.heightFeet * 12 + settings.heightInches;
+    const tdee = calculateTDEE(settings.currentWeight, totalHeight, settings.age, settings.sex, settings.activityLevel);
+    const exercise = caloriesFromSteps(settings.dailyStepGoal, settings.currentWeight);
+    const dietDef = Math.max(0, tdee - settings.calorieBudget);
+    const totalDaily = dietDef + exercise;
+    computedDeficit = totalDaily;
+    computedRate = totalDaily > 0 ? (totalDaily * 7) / CALORIES_PER_POUND : 0;
+    if (computedRate > 0 && weightDiff > 0) {
+      const daysNeeded = Math.ceil((weightDiff / computedRate) * 7);
+      const d = new Date();
+      d.setDate(d.getDate() + daysNeeded);
+      computedDate = d.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
+    }
   }
 
   return (
     <div className="space-y-4 pb-4">
       {/* ── Plan Mode ── */}
       <div className="bg-zinc-900 rounded-2xl p-5 border border-zinc-800/60 space-y-4">
+        <InputGroup icon={Target} label="Target Weight">
+          <NumberInput
+            value={settings.targetWeight}
+            onChange={(v) => update('targetWeight', v)}
+            min={50}
+            max={700}
+            unit="lbs"
+          />
+        </InputGroup>
+
         <InputGroup icon={TrendingDown} label="Plan By">
           <div className="flex gap-1.5">
             {[
@@ -214,10 +236,26 @@ export default function Settings({ settings, onChange, onCurrentWeightChange }) 
                 <span>3,000</span>
               </div>
             </InputGroup>
-            <p className="text-[11px] text-zinc-600 leading-relaxed">
-              Your deficit is calculated from your maintenance calories minus this
-              goal. Check the dashboard to see your estimated rate and goal date.
-            </p>
+            {computedRate > 0 && (
+              <ComputedValue label="Estimated rate">
+                <p className={`text-sm font-semibold ${computedRate > 2 ? 'text-rose-400' : 'text-white'}`}>
+                  {computedRate.toFixed(1)} lbs/week
+                  {computedRate > 2 && <span className="text-xs text-rose-400/70 ml-2">(aggressive)</span>}
+                </p>
+              </ComputedValue>
+            )}
+            {computedDate && (
+              <ComputedValue label="Estimated goal date">
+                <p className="text-sm font-semibold text-white">{computedDate}</p>
+              </ComputedValue>
+            )}
+            {computedDeficit > 0 && (
+              <ComputedValue label="Daily deficit">
+                <p className="text-sm font-semibold text-white">
+                  {Math.round(computedDeficit).toLocaleString()} cal/day
+                </p>
+              </ComputedValue>
+            )}
           </>
         )}
       </div>
@@ -330,7 +368,7 @@ export default function Settings({ settings, onChange, onCurrentWeightChange }) 
         </InputGroup>
       </div>
 
-      {/* ── Weight (onboarding, bottom) ── */}
+      {/* ── Initial Setup (bottom, rarely changed) ── */}
       <div className="bg-zinc-900 rounded-2xl p-5 border border-zinc-800/60 space-y-4">
         <InputGroup icon={Scale} label="Starting Weight">
           <NumberInput
@@ -339,16 +377,6 @@ export default function Settings({ settings, onChange, onCurrentWeightChange }) 
               update('currentWeight', v);
               if (onCurrentWeightChange) onCurrentWeightChange(v);
             }}
-            min={50}
-            max={700}
-            unit="lbs"
-          />
-        </InputGroup>
-
-        <InputGroup icon={Target} label="Target Weight">
-          <NumberInput
-            value={settings.targetWeight}
-            onChange={(v) => update('targetWeight', v)}
             min={50}
             max={700}
             unit="lbs"

@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import {
   Flame,
   Calendar,
@@ -9,6 +10,8 @@ import {
   TrendingDown,
   TrendingUp,
   PartyPopper,
+  X,
+  Maximize2,
 } from 'lucide-react';
 import {
   ResponsiveContainer,
@@ -269,6 +272,51 @@ function ColoredDot({ cx, cy, payload }) {
   );
 }
 
+// --- Trend line (linear regression) ---
+
+function addTrendLine(data) {
+  const points = data
+    .filter((d) => d.actual != null)
+    .map((d) => ({ x: new Date(d.dateStr + 'T00:00:00').getTime(), y: d.actual, ds: d.dateStr }));
+  if (points.length < 2) return data;
+
+  const n = points.length;
+  let sx = 0, sy = 0, sxy = 0, sx2 = 0;
+  for (const p of points) { sx += p.x; sy += p.y; sxy += p.x * p.y; sx2 += p.x * p.x; }
+  const denom = n * sx2 - sx * sx;
+  if (denom === 0) return data;
+  const slope = (n * sxy - sx * sy) / denom;
+  const intercept = (sy - slope * sx) / n;
+
+  const firstX = points[0].x;
+  const lastX = points[points.length - 1].x;
+  const ext = (lastX - firstX) * 0.15;
+
+  return data.map((d) => {
+    const t = new Date(d.dateStr + 'T00:00:00').getTime();
+    if (t >= firstX && t <= lastX + ext) {
+      return { ...d, trend: Math.round((intercept + slope * t) * 10) / 10 };
+    }
+    return { ...d, trend: null };
+  });
+}
+
+// --- Full-screen chart modal ---
+
+function ChartModal({ title, onClose, children }) {
+  return (
+    <div className="fixed inset-0 z-50 bg-zinc-950 flex flex-col">
+      <div className="flex items-center justify-between px-4 py-3 border-b border-zinc-800">
+        <h2 className="text-sm font-semibold text-white">{title}</h2>
+        <button onClick={onClose} className="text-zinc-400 p-2 -mr-2">
+          <X className="w-5 h-5" />
+        </button>
+      </div>
+      <div className="flex-1 p-4 overflow-hidden">{children}</div>
+    </div>
+  );
+}
+
 // --- Tooltips ---
 
 function WeightTooltip({ active, payload }) {
@@ -285,6 +333,9 @@ function WeightTooltip({ active, payload }) {
       )}
       {data?.revised != null && data?.actual == null && (
         <p className="text-xs font-semibold text-amber-400 font-mono">Revised: {data.revised} lbs</p>
+      )}
+      {data?.trend != null && data?.actual == null && (
+        <p className="text-xs font-semibold text-violet-400 font-mono">Trend: {data.trend} lbs</p>
       )}
     </div>
   );
@@ -311,6 +362,11 @@ function DeficitTooltip({ active, payload }) {
           Revised: {data.revised.toLocaleString()} cal remaining
         </p>
       )}
+      {data?.trend != null && data?.actual == null && (
+        <p className="text-xs font-semibold text-violet-400 font-mono">
+          Trend: {data.trend.toLocaleString()} cal remaining
+        </p>
+      )}
     </div>
   );
 }
@@ -318,6 +374,8 @@ function DeficitTooltip({ active, payload }) {
 // --- Main Component ---
 
 export default function Dashboard({ metrics, entries = [] }) {
+  const [expandedChart, setExpandedChart] = useState(null);
+
   if (!metrics) return null;
 
   const {
@@ -350,6 +408,18 @@ export default function Dashboard({ metrics, entries = [] }) {
   const completed = Math.max(0, totalDeficit - remainingDeficit);
   const progressPercent = totalDeficit > 0 ? (completed / totalDeficit) * 100 : 0;
   const hasProgress = latestEntry && completed > 0;
+
+  // Actual rate from logged entries
+  let actualLbsPerWeek = null;
+  if (entries.length >= 2) {
+    const sorted = [...entries].sort((a, b) => a.date.localeCompare(b.date));
+    const first = sorted[0];
+    const last = sorted[sorted.length - 1];
+    const daysBetween = (new Date(last.date + 'T00:00:00') - new Date(first.date + 'T00:00:00')) / (1000 * 60 * 60 * 24);
+    if (daysBetween >= 1) {
+      actualLbsPerWeek = ((first.weight - last.weight) / daysBetween) * 7;
+    }
+  }
 
   // At goal state
   if (weightDiff < 0.1 || (latestEntry && Math.abs(latestEntry.weight - targetWeight) < 0.1)) {
@@ -390,9 +460,9 @@ export default function Dashboard({ metrics, entries = [] }) {
   const hasWarnings = lbsPerWeek > 2 || (isLosing && targetIntake < minSafeIntake);
 
   // Deficit progress chart data
-  const deficitChartData = generateDeficitChartData(
+  const deficitChartData = addTrendLine(generateDeficitChartData(
     targetWeight, totalDeficit, days, targetDate, isLosing, entries
-  );
+  ));
   const hasActualDeficit = deficitChartData.some((d) => d.actual != null);
 
   return (
@@ -429,8 +499,17 @@ export default function Dashboard({ metrics, entries = [] }) {
         )}
         <div className={`text-xs mt-2 font-semibold ${rateColor}`}>
           {isLosing ? <TrendingDown className="w-3 h-3 inline mr-1" /> : <TrendingUp className="w-3 h-3 inline mr-1" />}
-          {lbsPerWeek.toFixed(1)} lbs/week &middot; {rateLabel}
+          {lbsPerWeek.toFixed(1)} lbs/week plan &middot; {rateLabel}
         </div>
+        {actualLbsPerWeek !== null && (
+          <div className="text-xs mt-1 text-zinc-500">
+            Actual:{' '}
+            <span className={actualLbsPerWeek > 0 ? 'text-emerald-400 font-semibold' : 'text-rose-400 font-semibold'}>
+              {Math.abs(actualLbsPerWeek).toFixed(1)} lbs/week
+            </span>
+            {actualLbsPerWeek <= 0 && ' (gaining)'}
+          </div>
+        )}
       </div>
 
       {/* ── Deficit Progress Chart ── */}
@@ -442,26 +521,21 @@ export default function Dashboard({ metrics, entries = [] }) {
           .map((d) => d.label);
 
         return (
-          <div className="bg-zinc-900 rounded-2xl p-5 border border-zinc-800/60">
+          <div className="bg-zinc-900 rounded-2xl p-5 border border-zinc-800/60 cursor-pointer" onClick={() => setExpandedChart('deficit')}>
             <div className="flex items-center justify-between mb-4">
-              <h3 className="text-xs font-semibold text-zinc-500 uppercase tracking-wider">
-                Remaining Balance
-              </h3>
-              <div className="flex items-center gap-3">
-                <div className="flex items-center gap-1.5">
-                  <div className="w-2 h-2 rounded-full bg-rose-400" />
-                  <span className="text-[10px] text-zinc-500">Plan</span>
-                </div>
+              <div className="flex items-center gap-2">
+                <h3 className="text-xs font-semibold text-zinc-500 uppercase tracking-wider">
+                  Remaining Balance
+                </h3>
+                <Maximize2 className="w-3 h-3 text-zinc-600" />
+              </div>
+              <div className="flex items-center gap-2.5 flex-wrap justify-end">
+                <div className="flex items-center gap-1"><div className="w-1.5 h-1.5 rounded-full bg-rose-400" /><span className="text-[9px] text-zinc-500">Plan</span></div>
                 {hasActualDeficit && (
                   <>
-                    <div className="flex items-center gap-1.5">
-                      <div className="w-2 h-2 rounded-full bg-blue-400" />
-                      <span className="text-[10px] text-zinc-500">Actual</span>
-                    </div>
-                    <div className="flex items-center gap-1.5">
-                      <div className="w-2 h-0.5 border-t border-dashed border-amber-400" style={{ width: 8 }} />
-                      <span className="text-[10px] text-zinc-500">Revised</span>
-                    </div>
+                    <div className="flex items-center gap-1"><div className="w-1.5 h-1.5 rounded-full bg-blue-400" /><span className="text-[9px] text-zinc-500">Actual</span></div>
+                    <div className="flex items-center gap-1"><div className="w-1.5 h-1.5 rounded-full bg-violet-400" /><span className="text-[9px] text-zinc-500">Trend</span></div>
+                    <div className="flex items-center gap-1"><div className="w-3 h-0 border-t border-dashed border-amber-400" /><span className="text-[9px] text-zinc-500">Revised</span></div>
                   </>
                 )}
               </div>
@@ -528,6 +602,15 @@ export default function Dashboard({ metrics, entries = [] }) {
                         strokeDasharray="6 4"
                         dot={false}
                         activeDot={{ r: 3, fill: '#fbbf24', stroke: '#18181b', strokeWidth: 2 }}
+                        connectNulls
+                      />
+                      <Line
+                        type="monotone"
+                        dataKey="trend"
+                        stroke="#a78bfa"
+                        strokeWidth={1.5}
+                        strokeDasharray="3 3"
+                        dot={false}
                         connectNulls
                       />
                     </>
@@ -661,15 +744,16 @@ export default function Dashboard({ metrics, entries = [] }) {
 
       {/* ── Weight Over Time Chart ── */}
       {(() => {
-        const chartData = generateWeightChartData(
+        const chartData = addTrendLine(generateWeightChartData(
           currentWeight, targetWeight, lbsPerWeek, targetDate, isLosing, entries
-        );
+        ));
         if (chartData.length < 2) return null;
 
         const projectedVals = chartData.map((d) => d.projected);
         const actualVals = chartData.filter((d) => d.actual != null).map((d) => d.actual);
         const revisedVals = chartData.filter((d) => d.revised != null).map((d) => d.revised);
-        const allValues = [...projectedVals, ...actualVals, ...revisedVals, targetWeight];
+        const trendVals = chartData.filter((d) => d.trend != null).map((d) => d.trend);
+        const allValues = [...projectedVals, ...actualVals, ...revisedVals, ...trendVals, targetWeight];
         const minW = Math.floor(Math.min(...allValues) / 5) * 5 - 5;
         const maxW = Math.ceil(Math.max(...allValues) / 5) * 5 + 5;
 
@@ -680,26 +764,21 @@ export default function Dashboard({ metrics, entries = [] }) {
         const hasActual = actualVals.length > 0;
 
         return (
-          <div className="bg-zinc-900 rounded-2xl p-5 border border-zinc-800/60">
+          <div className="bg-zinc-900 rounded-2xl p-5 border border-zinc-800/60 cursor-pointer" onClick={() => setExpandedChart('weight')}>
             <div className="flex items-center justify-between mb-4">
-              <h3 className="text-xs font-semibold text-zinc-500 uppercase tracking-wider">
-                Projected Weight
-              </h3>
-              <div className="flex items-center gap-3">
-                <div className="flex items-center gap-1.5">
-                  <div className="w-2 h-2 rounded-full bg-emerald-400" />
-                  <span className="text-[10px] text-zinc-500">Plan</span>
-                </div>
+              <div className="flex items-center gap-2">
+                <h3 className="text-xs font-semibold text-zinc-500 uppercase tracking-wider">
+                  Projected Weight
+                </h3>
+                <Maximize2 className="w-3 h-3 text-zinc-600" />
+              </div>
+              <div className="flex items-center gap-2.5 flex-wrap justify-end">
+                <div className="flex items-center gap-1"><div className="w-1.5 h-1.5 rounded-full bg-emerald-400" /><span className="text-[9px] text-zinc-500">Plan</span></div>
                 {hasActual && (
                   <>
-                    <div className="flex items-center gap-1.5">
-                      <div className="w-2 h-2 rounded-full bg-blue-400" />
-                      <span className="text-[10px] text-zinc-500">Actual</span>
-                    </div>
-                    <div className="flex items-center gap-1.5">
-                      <div className="w-2 h-0.5 border-t border-dashed border-amber-400" style={{ width: 8 }} />
-                      <span className="text-[10px] text-zinc-500">Revised</span>
-                    </div>
+                    <div className="flex items-center gap-1"><div className="w-1.5 h-1.5 rounded-full bg-blue-400" /><span className="text-[9px] text-zinc-500">Actual</span></div>
+                    <div className="flex items-center gap-1"><div className="w-1.5 h-1.5 rounded-full bg-violet-400" /><span className="text-[9px] text-zinc-500">Trend</span></div>
+                    <div className="flex items-center gap-1"><div className="w-3 h-0 border-t border-dashed border-amber-400" /><span className="text-[9px] text-zinc-500">Revised</span></div>
                   </>
                 )}
               </div>
@@ -767,6 +846,15 @@ export default function Dashboard({ metrics, entries = [] }) {
                         activeDot={{ r: 3, fill: '#fbbf24', stroke: '#18181b', strokeWidth: 2 }}
                         connectNulls
                       />
+                      <Line
+                        type="monotone"
+                        dataKey="trend"
+                        stroke="#a78bfa"
+                        strokeWidth={1.5}
+                        strokeDasharray="3 3"
+                        dot={false}
+                        connectNulls
+                      />
                     </>
                   )}
                 </ComposedChart>
@@ -820,6 +908,78 @@ export default function Dashboard({ metrics, entries = [] }) {
           </div>
         </div>
       )}
+
+      {/* ── Full-screen chart modals ── */}
+      {expandedChart === 'deficit' && deficitChartData.length >= 2 && (() => {
+        const maxVal = totalDeficit;
+        return (
+          <ChartModal title="Remaining Balance" onClose={() => setExpandedChart(null)}>
+            <div className="h-full">
+              <ResponsiveContainer width="100%" height="100%">
+                <ComposedChart data={deficitChartData} margin={{ top: 10, right: 15, bottom: 20, left: 5 }}>
+                  <defs>
+                    <linearGradient id="deficitGradFull" x1="0" y1="1" x2="0" y2="0">
+                      <stop offset="0%" stopColor="#f43f5e" stopOpacity={0} />
+                      <stop offset="100%" stopColor="#f43f5e" stopOpacity={0.15} />
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#27272a" vertical={false} />
+                  <XAxis dataKey="label" tick={{ fontSize: 11, fill: '#52525b' }} tickLine={false} axisLine={{ stroke: '#27272a' }} />
+                  <YAxis domain={[0, maxVal]} tick={{ fontSize: 11, fill: '#52525b' }} tickLine={false} axisLine={false} width={52} tickFormatter={(v) => v >= 1000 ? `${Math.round(v / 1000)}k` : `${v}`} />
+                  <Tooltip content={<DeficitTooltip />} />
+                  <ReferenceLine y={0} stroke="#34d399" strokeDasharray="6 3" strokeOpacity={0.4} />
+                  <Area type="monotone" dataKey="planned" stroke="#f87171" strokeWidth={2} fill="url(#deficitGradFull)" dot={false} />
+                  {hasActualDeficit && (
+                    <>
+                      <Line type="monotone" dataKey="actual" stroke="#60a5fa" strokeWidth={2.5} dot={<ColoredDot />} connectNulls />
+                      <Line type="monotone" dataKey="revised" stroke="#fbbf24" strokeWidth={1.5} strokeDasharray="6 4" dot={false} connectNulls />
+                      <Line type="monotone" dataKey="trend" stroke="#a78bfa" strokeWidth={1.5} strokeDasharray="3 3" dot={false} connectNulls />
+                    </>
+                  )}
+                </ComposedChart>
+              </ResponsiveContainer>
+            </div>
+          </ChartModal>
+        );
+      })()}
+
+      {expandedChart === 'weight' && (() => {
+        const chartData = addTrendLine(generateWeightChartData(currentWeight, targetWeight, lbsPerWeek, targetDate, isLosing, entries));
+        if (chartData.length < 2) return null;
+        const allVals = [...chartData.map(d => d.projected), ...chartData.filter(d => d.actual != null).map(d => d.actual), ...chartData.filter(d => d.revised != null).map(d => d.revised), ...chartData.filter(d => d.trend != null).map(d => d.trend), targetWeight];
+        const minW = Math.floor(Math.min(...allVals) / 5) * 5 - 5;
+        const maxW = Math.ceil(Math.max(...allVals) / 5) * 5 + 5;
+        const hasActual = chartData.some(d => d.actual != null);
+        return (
+          <ChartModal title="Projected Weight" onClose={() => setExpandedChart(null)}>
+            <div className="h-full">
+              <ResponsiveContainer width="100%" height="100%">
+                <ComposedChart data={chartData} margin={{ top: 10, right: 15, bottom: 20, left: 5 }}>
+                  <defs>
+                    <linearGradient id="weightGradFull" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="#34d399" stopOpacity={0.25} />
+                      <stop offset="100%" stopColor="#34d399" stopOpacity={0} />
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#27272a" vertical={false} />
+                  <XAxis dataKey="label" tick={{ fontSize: 11, fill: '#52525b' }} tickLine={false} axisLine={{ stroke: '#27272a' }} />
+                  <YAxis domain={[minW, maxW]} tick={{ fontSize: 11, fill: '#52525b' }} tickLine={false} axisLine={false} width={44} />
+                  <Tooltip content={<WeightTooltip />} />
+                  <ReferenceLine y={targetWeight} stroke="#f43f5e" strokeDasharray="6 3" strokeOpacity={0.5} />
+                  <Area type="monotone" dataKey="projected" stroke="#34d399" strokeWidth={2} fill="url(#weightGradFull)" dot={false} />
+                  {hasActual && (
+                    <>
+                      <Line type="monotone" dataKey="actual" stroke="#60a5fa" strokeWidth={2.5} dot={<ColoredDot />} connectNulls />
+                      <Line type="monotone" dataKey="revised" stroke="#fbbf24" strokeWidth={1.5} strokeDasharray="6 4" dot={false} connectNulls />
+                      <Line type="monotone" dataKey="trend" stroke="#a78bfa" strokeWidth={1.5} strokeDasharray="3 3" dot={false} connectNulls />
+                    </>
+                  )}
+                </ComposedChart>
+              </ResponsiveContainer>
+            </div>
+          </ChartModal>
+        );
+      })()}
     </div>
   );
 }

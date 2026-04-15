@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react'
-import { LayoutDashboard, PenLine, SlidersHorizontal } from 'lucide-react'
+import { LayoutDashboard, PenLine, SlidersHorizontal, FileText, X } from 'lucide-react'
 import Dashboard from './components/Dashboard'
 import Track from './components/Track'
 import Settings from './components/Settings'
@@ -51,8 +51,31 @@ function todayStr() {
   return new Date().toISOString().split('T')[0]
 }
 
+const CHANGELOG = [
+  { date: '2026-04-15', text: 'Full-screen charts, trend lines, actual lbs/week rate' },
+  { date: '2026-04-15', text: 'Calorie budget plan mode, simplified activity level' },
+  { date: '2026-04-15', text: 'Color-coded weight dots (green/red/blue)' },
+  { date: '2026-04-15', text: 'TDEE calorie bar, deficit progress chart' },
+  { date: '2026-04-15', text: 'Weight tracking with actual vs projected charts' },
+  { date: '2026-04-15', text: 'Revised projection line from current weight' },
+  { date: '2026-04-15', text: 'Initial build: calorie deficit dashboard' },
+]
+
+const ROADMAP = [
+  'TDEE-adjusted non-linear projections',
+  'Weekly/monthly summary stats',
+  'Export data to CSV/JSON',
+  'Dark/light theme toggle',
+  'Unit toggle (lbs/kg)',
+  'Macro tracking (protein, carbs, fat)',
+  'Integration with step counter APIs',
+  'Weekly weigh-in reminders',
+  'Social sharing of milestones',
+]
+
 export default function App() {
   const [tab, setTab] = useState('dashboard')
+  const [showChangelog, setShowChangelog] = useState(false)
   const [settings, setSettings] = useState(() => ({
     ...DEFAULT_SETTINGS,
     ...loadJSON(SETTINGS_KEY, {}),
@@ -91,9 +114,13 @@ export default function App() {
             <span className="text-white">Calorie</span>
             <span className="text-emerald-400">Debt</span>
           </h1>
-          <span className="text-[11px] text-zinc-600 font-mono tabular-nums">
-            {settings.currentWeight} &rarr; {settings.targetWeight} lbs
-          </span>
+          <button
+            onClick={() => setShowChangelog(true)}
+            className="flex items-center gap-1.5 text-zinc-600 hover:text-zinc-400 transition-colors"
+          >
+            <FileText className="w-4 h-4" />
+            <span className="text-[11px] font-medium">v0.1</span>
+          </button>
         </div>
       </header>
 
@@ -139,6 +166,42 @@ export default function App() {
           ))}
         </div>
       </nav>
+
+      {/* Changelog / Roadmap Modal */}
+      {showChangelog && (
+        <div className="fixed inset-0 z-50 bg-zinc-950 flex flex-col">
+          <div className="flex items-center justify-between px-4 py-3 border-b border-zinc-800">
+            <h2 className="text-sm font-semibold text-white">CalorieDebt v0.1</h2>
+            <button onClick={() => setShowChangelog(false)} className="text-zinc-400 p-2 -mr-2">
+              <X className="w-5 h-5" />
+            </button>
+          </div>
+          <div className="flex-1 overflow-y-auto px-4 py-4 space-y-6">
+            <div>
+              <h3 className="text-xs font-semibold text-zinc-500 uppercase tracking-wider mb-3">Changelog</h3>
+              <div className="space-y-2">
+                {CHANGELOG.map((item, i) => (
+                  <div key={i} className="flex gap-3 text-sm">
+                    <span className="text-zinc-600 font-mono text-xs shrink-0 pt-0.5">{item.date}</span>
+                    <span className="text-zinc-300">{item.text}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+            <div>
+              <h3 className="text-xs font-semibold text-zinc-500 uppercase tracking-wider mb-3">Roadmap</h3>
+              <div className="space-y-2">
+                {ROADMAP.map((item, i) => (
+                  <div key={i} className="flex items-start gap-2 text-sm">
+                    <span className="text-zinc-700 mt-1">&#9633;</span>
+                    <span className="text-zinc-400">{item}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
